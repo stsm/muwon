@@ -1,0 +1,68 @@
+000010 REM Programm zur Loginverwaltung
+000020 REM 11.12.2007 - Schmidt (Programmerstellung)
+000030 REM 22.05.2008 - Schmidt (Fehlerbehandlung)
+000040 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000050 REM 04.02.2009 - Schmidt (MD5 Hash Session-ID siehe WFSESSION.INC)
+000060 
+000070      INCLUDE "CGI"
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFSESSION.INC" ! Sessionverwaltung
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140      OPTION VERSION 2.0.02,"Mittermeier & Ungelenk GmbH"
+000150 
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$))
+000180      CALL CGI.GET("passwd",ADDROF(PASSWD$))
+000190      CALL CGI.GET("sid",ADDROF(SID$))
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000210      KDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000220 
+000230      COMMON KDNR$,SID$
+000240      SELECT 
+000250           CASE KDNR$<>"" AND PASSWD$<>"" AND AKTION$="Anmelden" ! Anmeldung
+000260                KY2$ = FORMAT$(VAL(KDNR$),"999999")
+000270                FL% = 2 \ FL$ = "PASSWRD.OPA" \ OPEN #2:"/WWWROOT/OPA/PASSWRD.OPA", INPUT INDEXED 
+000280                READ #2,KY2$:XKDNR$,CHKPASSWD$ \ CLEAR FL%
+000290                IF EOF(2) ! Kundennummer nicht gefunden
+000300                     CLOSE #2
+000310                     CALL CGI.TEMPLATE.VAR("msg1","Kundennummer oder Passwort falsch!")
+000320                     CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000330                     GOTO ENDE
+000340                     IFEND 
+000350                IF NOT EOF(2) ! Kundennummer gefunden
+000360                     IF TRIM$(PASSWD$)<>TRIM$(CHKPASSWD$) ! Passwort stimmt nicht
+000370                          CALL CGI.TEMPLATE.VAR("msg1","Falsches Passwort!")
+000380                          RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000390                          CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000400                          GOTO ENDE
+000410                          IFEND 
+000420                     FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000430                     RC$ = FN.WFSESSION$("session.generate","",FKDNR$)
+000440                     SID$ = RC$ ! Rückgabewert v. WFSESSION ist Session-ID
+000450                     FL% = 5 \ OPEN #5:"/WWWROOT/OPA/ZUGRIFF.OPA", OUTPUT INDEXED 
+000460                     CALL CGI.BROWSER("browser",ADDROF(BR.NAME$))
+000470                     CALL CGI.BROWSER("version",ADDROF(BR.VER$))
+000480                     CALL CGI.BROWSER("platform",ADDROF(BR.PLAT$))
+000490                     WRITE #5,"1"&KDNR$&STR$(DAY(DATE$(0)))&STR$(SECOND(TIME$(0))):KDNR$,BR.NAME$&" "&BR.VER$,BR.PLAT$,DATE$(0),TIME$(0),SYS.ENV$(17,"REMOTE_ADDR")
+000500                     CLOSE #5
+000510                     CHAIN "index" ! index autom. ausführen und parsen
+000520                     IFEND 
+000530           CASE AKTION$="Abmelden"
+000540                FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000550                RC$ = FN.WFSESSION$("session.destroy",SID$,FKDNR$)
+000560                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000570                CALL CGI.TEMPLATE("/wwwroot/opa/logout.asp")
+000580           OTHERWISE 
+000590                CALL CGI.TEMPLATE.VAR("msg1","Fehler! Bitte überprüfen Sie ihre Eingaben")
+000600                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000610                CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000620                GOTO ENDE
+000630           CEND 
+000640 ENDE:
+000650      END \ QUIT 
+000660 REM ---------------------------------------------------------
+000670 ERROR.ROUT:
+000680      RC$ = FN.WFKIFEHL$("session",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,223 @@
+000010 REM Programm zur Anzeige der bewo_li_aus.tpl Datei
+000020 REM 14.02.2008 Schmidt - PDF Ausgabe eingebaut
+000030 REM 21.02.2008 Schmidt - Status 0/1/2/3 mit Fußlegende
+000040 REM 28.03.2008 Schmidt - PDF Kopf angepasst
+000050 REM 10.04.2008 Schmidt - Nach Status anzeigen
+000060 REM 02.05.2008 Schmidt - Anzahl Bewohner anzeigen (bewo.anz,str$(i%))
+000070 REM 22.05.2008 Schmidt - Fehlerbehandlung
+000080 REM 22.07.2008 Schmidt - Fehler behoben wenn I%<=0 ist (kein Bewo.)
+000090 REM 27.10.2008 Schmidt - Sperrdatum
+000100 REM 28.10.2008 Schmidt - Sperrdatum nur bei gesperrten anzeigen
+000110 REM 14.11.2008 Schmidt - Umbau auf "OPA" Version 2
+000120 REM 28.05.2009 Schmidt - Listen CSV Export / ZIP
+000130 REM 13.08.2009 Schmidt - Umlaute Exportdateien
+000140 
+000150      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000160      INCLUDE "WFALLGEM.INC" ! allgemeine Routinen
+000170      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000180      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000190      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000200 
+000210      OPTION VERSION 2.0.04,"Mittermeier & Ungelenk GmbH"
+000220 
+000230      ON ERROR GOTO ERROR.ROUT
+000240 
+000250 REM *******************************************************
+000260      CALL CGI.INIT
+000270      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000280      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000290      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000300      CALL CGI.GET("von",ADDROF(BEWONRVON$)) ! Bewohnernummer "VON"
+000310      CALL CGI.GET("bis",ADDROF(BEWONRBIS$)) ! Bewohnernummer "BIS"
+000320      CALL CGI.GET("sort",ADDROF(SORT$)) ! Sortierungsparameter
+000330      CALL CGI.GET("status",ADDROF(STATUS$)) ! Anzeige nach Status
+000340 REM *******************************************************
+000350 
+000360 REM ************ Session prüfen ***************
+000370      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000380      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000390 REM *******************************************
+000400 
+000410      DIM BEWONR(1000),BEWONA$(1000),BEWOZI$(1000),BEWOST$(1000),BEWOSS$(1000),BEWOSP$(1000)
+000420      DIM SORT%(1000)
+000430 
+000440      LEER$ = "&nbsp;"
+000450      UMBR$ = "<br />"
+000460      FONT$ = "<font size=""2"" face=""verdana"">"
+000470      LEGENDE.PDF$ = "0 = keine Sperre | 1 = gesperrt | 2 = gestorben | 3 = umgezogen"
+000480      FORMA.SORT$ = "<form action=""/cgi.opa/bewo_li_aus"" method=""post"">"
+000490      SELECT.SORT$ = FN.FORM.SELECT$("sort",1)
+000500      SELECT.SORT.INHALT$(1) = FN.FORM.SELECT.OPTION$("1",0,"Bewohnernummer")
+000510      SELECT.SORT.INHALT$(2) = FN.FORM.SELECT.OPTION$("2",0,"Bewohnername")
+000520      SELECT.SORT.INHALT$(3) = FN.FORM.SELECT.OPTION$("3",0,"Zimmer")
+000530      SELECT.SORT.INHALT$(4) = FN.FORM.SELECT.OPTION$("4",0,"Station")
+000540      SELECT.SORT.INHALT$(5) = FN.FORM.SELECT.OPTION$("5",0,"Status")
+000550      SELECT.SORT.INHALT$(6) = FN.FORM.SELECT.OPTION$("6",0,"Sperrdatum")
+000560      BUTTON.SORT$ = FN.FORM.BUTTON$("sort","Sortieren")
+000570      FORME.SORT$ = "</form>"
+000580      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000590      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000600      PARA3$ = FN.FORM.HIDDEN$("sort",SORT$)
+000610      PARA4$ = FN.FORM.HIDDEN$("von",BEWONRVON$)
+000620      PARA5$ = FN.FORM.HIDDEN$("bis",BEWONRBIS$)
+000630      PARA6$ = FN.FORM.HIDDEN$("sid",SID$)
+000640      PARA7$ = FN.FORM.HIDDEN$("status",STATUS$)
+000650 
+000660      SELECT AKTION$
+000670           CASE "list"
+000680                IF VAL(BEWONRVON$)<VAL(BEWONRBIS$) OR VAL(BEWONRVON$)=VAL(BEWONRBIS$) ! von/bis unterschiedlich
+000690                     FL% = 10 \ OPEN #10:"/KUSTWA.REI", INPUT INDEXED \ GOSUB L10 ! Kundenstamm lesen
+000700                     FL% = 11 \ OPEN #11:"/BEWOH1.REI", INPUT INDEXED 
+000710                     FL% = 23 \ OPEN #23:"/WWWROOT/TEMP/"&SID$, OUTPUT SEQUENTIAL ! Tempdatei für PDF-Ausgabe
+000720                     FL% = 24 \ OPEN #24:"/WWWROOT/TEMP/"&SID$&".CSV", OUTPUT SEQUENTIAL ! CSV-Ausgabe
+000730                     GOSUB KOPF ! Kopfzeile PDF Datei
+000740                     GOSUB CSV.KOPF ! Kopfzeile CSV Datei
+000750                     FOR S = VAL(BEWONRVON$) TO VAL(BEWONRBIS$)
+000760                          LKEY$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(S,"999999")
+000770                          GOSUB L11 \ UNLOCK #11 ! Bewohnerstamm lesen
+000780                          IF LKEY$[2:7]<>FORMAT$(VAL(KDNR$),"999999") THEN GOTO 930
+000790                          IF STATUS$="0" AND ASP3$[6:6]<>"0" THEN GOTO 930 ! keine gesp. anzeigen
+000800                          IF STATUS$="1" AND ASP3$[6:6]="0" THEN GOTO 930 ! nur gesp. anzeigen
+000810                          I% = I%+1
+000820                          BEWONR(I%) = ASNR
+000830                          IF ASNR=0 THEN I% = I%-1 \ GOTO 930 ! freie Nummern in der Anzeige späteren Anzeige auslassen - sprich überspringen
+000840                          BEWONR(I%) = ASNR ! Bewo.-Nr.
+000850                          BEWONA$(I%) = ASBE$ ! Bewo.-Name
+000860                          BEWOZI$(I%) = ASP2$ ! Zimmer
+000870                          BEWOST$(I%) = ASP3$[1:5] ! Station
+000880                          BEWOSS$(I%) = ASP3$[6:6] ! Status
+000890                          BEWOSP$(I%) = STR$(DAY(ASP3$[36:41])) ! Sperrdatum
+000900                          IF VAL(BEWOSS$(I%))=0 AND BEWOSP$(I%)<>"" OR VAL(BEWOSP$(I%))<=0 ! Bewohner war mal gesperrt oder kein Sperrdatum
+000910                               BEWOSP$(I%) = "999999" ! Datum auf "leer" setzen
+000920                               IFEND 
+000930                          NEXT S
+000940                     CLOSE #11
+000950                     IFEND 
+000960                IF VAL(BEWONRVON$)>VAL(BEWONRBIS$) OR I%<=0 THEN GOTO FEHLER
+000970                REDIM SORT%(I%) ! Sort.-array neu dimen. / SPeicher sparen ;)
+000980                SELECT SORT$
+000990                     CASE "1" ! nach Bewohnernummer
+001000                          MAT SORT% = SORT(BEWONR)
+001010                     CASE "2" ! nach Bewohnername
+001020                          MAT SORT% = SORT(BEWONA$)
+001030                     CASE "3" ! nach Zimmer
+001040                          MAT SORT% = SORT(BEWOZI$)
+001050                     CASE "4" ! nach Station
+001060                          MAT SORT% = SORT(BEWOST$)
+001070                     CASE "5" ! nach Statis
+001080                          MAT SORT% = SORT(BEWOSS$)
+001090                     CASE "6" ! Sperrdatum
+001100                          MAT SORT% = SORT(BEWOSP$)
+001110                     OTHERWISE 
+001120                          PRINT "Fehler bei der Sortierung!" \ STOP 
+001130                     CEND 
+001140                FOR SORTLAUF% = 1 TO I%
+001150                     CALL CGI.TEMPLATE.VAR("bewo.list"&STR$(SORTLAUF%),"<tr><td align=""center"">"&FONT$&STR$(SORTLAUF%)&"</font></td><td align=""center"">"&FONT$&STR$(BEWONR(SORT%(SORTLAUF%)))&"</font></td><td>"&FONT$&BEWONA$(SORT%(SORTLAUF%))&"</font></td><td align=""center"">"&FONT$&BEWOZI$(SORT%(SORTLAUF%))&"</font></td><td align=""center"">"&FONT$&BEWOST$(SORT%(SORTLAUF%))&"</font></td><td align=""center"">"&FONT$&BEWOSS$(SORT%(SORTLAUF%))&"<td align=""center"">"&FONT$&DATE$(VAL(BEWOSP$(SORT%(SORTLAUF%))))&"</td></font></td></tr>")
+001160                     PDFZL$ = SPACE$(132)
+001170                     PDFZL$[1:4] = STR$(BEWONR(SORT%(SORTLAUF%)))
+001180                     PDFZL$[7:32] = BEWONA$(SORT%(SORTLAUF%))
+001190                     PDFZL$[33:37] = BEWOZI$(SORT%(SORTLAUF%))
+001200                     PDFZL$[42:46] = BEWOST$(SORT%(SORTLAUF%))
+001210                     PDFZL$[54:56] = BEWOSS$(SORT%(SORTLAUF%))
+001220                     PDFZL$[62:72] = DATE$(VAL(BEWOSP$(SORT%(SORTLAUF%))))
+001230                     GOSUB PDF ! Zeile schreiben
+001240                     CSVZL$ = STR$(BEWONR(SORT%(SORTLAUF%)))&";"&BEWONA$(SORT%(SORTLAUF%))&";"&BEWOZI$(SORT%(SORTLAUF%))&";"&BEWOST$(SORT%(SORTLAUF%))&";"&BEWOSS$(SORT%(SORTLAUF%))&";"&DATE$(VAL(BEWOSP$(SORT%(SORTLAUF%))))
+001250                     CSVZL$ = FN.UMLAUTE.ZU.WINDOWS$(CSVZL$) ! Uumalute setzen
+001260                     GOSUB CSV ! CSV schreiben
+001270                     NEXT SORTLAUF%
+001280                PRINT #23 ! Leerzeile
+001290                PRINT #23:LEGENDE.PDF$
+001300                CLOSE #23 \ CLOSE #24
+001310                SYSTEM "pdf /WWWROOT/TEMP/"&SID$&" > /WWWROOT/TEMP/"&SID$&".pdf (a4 landscape cols 132"
+001320                SYSTEM "er /WWWROOT/TEMP/"&SID$&" (not noq" ! Arbeitsdatei leeren
+001330                SYSTEM "zip -q -j /WWWROOT/TEMP/"&SID$&".zip:s /WWWROOT/TEMP/"&SID$&".*"
+001340                PDFDOWN$ = "/temp/"&SID$&".PDF"
+001350                CALL CGI.TEMPLATE.VAR("pdf.down",PDFDOWN$)
+001360                CSVDOWN$ = "/temp/"&SID$&".CSV"
+001370                CALL CGI.TEMPLATE.VAR("csv.down",CSVDOWN$)
+001380                ZIPDOWN$ = "/temp/"&SID$&".ZIP"
+001390                CALL CGI.TEMPLATE.VAR("zip.down",ZIPDOWN$)
+001400                CALL CGI.TEMPLATE.VAR("forma.sort",FORMA.SORT$)
+001410                CALL CGI.TEMPLATE.VAR("select.sort",SELECT.SORT$)
+001420                CALL CGI.TEMPLATE.VAR("select.sort.inhalt1",SELECT.SORT.INHALT$(1))
+001430                CALL CGI.TEMPLATE.VAR("select.sort.inhalt2",SELECT.SORT.INHALT$(2))
+001440                CALL CGI.TEMPLATE.VAR("select.sort.inhalt3",SELECT.SORT.INHALT$(3))
+001450                CALL CGI.TEMPLATE.VAR("select.sort.inhalt4",SELECT.SORT.INHALT$(4))
+001460                CALL CGI.TEMPLATE.VAR("select.sort.inhalt5",SELECT.SORT.INHALT$(5))
+001470                CALL CGI.TEMPLATE.VAR("select.sort.inhalt6",SELECT.SORT.INHALT$(6))
+001480                CALL CGI.TEMPLATE.VAR("button.sort",BUTTON.SORT$)
+001490                CALL CGI.TEMPLATE.VAR("forme.sort",FORME.SORT$)
+001500                CALL CGI.TEMPLATE.VAR("bewo.anz",STR$(I%))
+001510                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+001520                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+001530                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+001540                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+001550                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+001560                CALL CGI.TEMPLATE.VAR("para6",PARA6$)
+001570                CALL CGI.TEMPLATE.VAR("para7",PARA7$)
+001580                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+001590                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+001600                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001610                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001620                CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_li_aus.tpl")
+001630                GOTO ENDE
+001640           CASE "print"
+001650                PRINT "Hier kommt demnaechst die Druckausgabe..."
+001660                STOP 
+001670           OTHERWISE 
+001680                PRINT "Hacking attempt!"
+001690                STOP 
+001700           CEND 
+001710 FEHLER:
+001720      MSG$(1) = "<li>Bewohnernummer VON darf nicht gr&ouml;sser sein als Bewohnernummer BIS</li>"
+001730      IF I%<=0 THEN MSG$(1) = "<li>Es wurden keine Bewohner nach Ihren Suchkriterien gefunden!</li>"
+001740      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001750      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001760      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001770      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+001780 ENDE:
+001790      END \ QUIT 
+001800 REM ------------------------------------------------
+001810 ERROR.ROUT:
+001820      RC$ = FN.WFKIFEHL$("bewo_li_aus",ERR,ERL,CRC$,FL%)
+001830 REM ---------------------------------------------------------
+001840 KOPF: ! PDF Kopf
+001850      PP% = PP%+1 ! Zeilenzähler
+001860      SZ% = SZ%+1 ! Seitenzähler
+001870      PRINT #23:"B E W O H N E R L I S T E"
+001880      PRINT #23:TRIM$(KA1$)&" , "&TRIM$(KA2$);SPACE$(4)&"Datum: "&DATE$(0);SPACE$(4)&"Uhrzeit: "&TIME$(0);SPACE$(10)&"Seite: "&STR$(SZ%)
+001890      PRINT #23
+001900      PRINT #23:"Nr.";TAB(7);"Name";TAB(33);"Zimmer";TAB(42);"Station";TAB(54);"Status";TAB(62);"Sperrdatum"
+001910      PRINT #23:RPT$(132,"-")
+001920      RETURN 
+001930 REM ---------------------------------------------------------
+001940 PDF:
+001950      PP% = PP%+1
+001960      PRINT #23:PDFZL$
+001970      IF PP%=38 ! Seitenwechel / Übertrag
+001980           PRINT #23:SPACE$(50);"*** Ü B E R T R A G ***"
+001990           CLEAR PP%
+002000           GOSUB KOPF
+002010           IFEND 
+002020      RETURN 
+002030 REM ---------------------------------------------------------
+002040 CSV.KOPF: ! CSV Kopf
+002050      PRINT #24:"Bewohnernummer;Bewohnername;Zimmer;Station;Status;Sperrdatum"
+002060      RETURN 
+002070 REM ---------------------------------------------------------
+002080 CSV: ! CSV schreiben
+002090      PRINT #24:CSVZL$
+002100      RETURN 
+002110 REM ---------------------------------------------------------
+002120 L10: ! Kundestamm lesen
+002130      KY10$ = "1"&FKDNR$
+002140      FL% = 10 \ READ #10,KY10$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,TEMP$,TEMP$,FK1% \ CLEAR FL%
+002150      UNLOCK #10
+002160      RETURN 
+002170 REM ---------------------------------------------------------
+002180 L11: ! Bewohnerstamm lesen
+002190      FL% = 11 \ READ #11,LKEY$:AS1%,AS2%,ZNR%,KNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8% \ CLEAR FL%
+002200      RETURN 
+002210 L111: ! Bewohnerstamm lesen - nächsten Satz
+002220      FL% = 11 \ READNEXT #11,LKEY$:AS1%,AS2%,ZNR%,KNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8% \ CLEAR FL%
+002230      RETURN 

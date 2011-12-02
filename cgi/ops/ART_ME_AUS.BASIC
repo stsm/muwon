@@ -1,0 +1,173 @@
+000010 REM Programm zur Anzeige der art_me_aus.tpl Datei
+000020 REM 09.02.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFALLGEM.INC" ! allgemein Funktionen
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150      DIM ART.NR(1000),ART.BEZ$(1000),MJAN(1000),MFEB(1000),MMAE(1000),MAPR(1000),MMAI(1000),MJUN(1000),MJUL(1000),MAUG(1000),MSEP(1000),MOKT(1000),MNOV(1000),MDEZ(1000),MGES(1000),ART.EIN$(1000)
+000160 
+000170 REM *******************************************************
+000180      CALL CGI.INIT
+000190      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000200      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000210      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000220      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000230      CALL CGI.GET("jahr",ADDROF(JAHR$)) ! Umsatzjahr
+000240 REM *******************************************************
+000250 
+000260 REM ************ Session prüfen ***************
+000270      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000280      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000290 REM *******************************************
+000300 
+000310 
+000320      M1$ = "########-" \ M2$ = "#########-" \ M3$ = "#########.##-" \ M4$ = "##########.##-" ! Zahlenformat
+000330      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000340      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000350      AKT.JAHR$ = DATE$(0)[7:10]
+000360      VOR.JAHR$ = STR$(VAL(DATE$(0)[7:10])-1)
+000370      SELECT AKTION$
+000380           CASE "list"
+000390                OPEN #1:"/KUSTWA.REI", INPUT INDEXED 
+000400                OPEN #4:"/FISTAM.REI", INPUT INDEXED 
+000410                OPEN #6:"/ARSTU1.REI", INPUT INDEXED 
+000420                OPEN #11:"/ARSTEU.REI", INPUT INDEXED 
+000430                KY1$ = "1"&FKDNR$
+000440                GOSUB L1 \ UNLOCK #1 \ CLOSE #1 ! Kunden lesen
+000450                HEIM$ = TRIM$(KA1$)&"; "&TRIM$(KA2$)
+000460                SATZ% = 2 ! fakturierte Preise
+000470                KY6$ = "1"&STR$(SATZ%)&JAHR$&FKDNR$&"000000"
+000480                GOSUB L6 ! Leseanfang ARSTU1
+000490                GOSUB L61 ! nächster Satz ARSTU1
+000500                IF EOF(6) OR VAL(AKY6$[2:2])<>SATZ% OR AKY6$[3:6]<>JAHR$ OR AKY6$[7:12]>FKDNR$ THEN GOTO AUSGABE
+000510                I% = I%+1 ! Satzzähler
+000520                ART.NR(I%) = VAL(AKY6$[13:18])
+000530                GOSUB BERECH
+000540                KY11$ = "1000000"&AKY6$[13:18]
+000550                GOSUB L11
+000560                IF TRIM$(ASBE$)="" THEN ASBE$ = "*** Artikel fehlt ***"
+000570                CALL UMLAUTE.ZU.HTML(ASBE$)
+000580                ART.BEZ$(I%) = HTML.CODE$
+000590                SELECT W28 ! Mengeneinheit
+000600                     CASE 1 ! Stück
+000610                          ART.EIN$(I%) = "St"
+000620                          MJAN(I%) = VAL(FORMAT$(MJAN(I%),M1$))
+000630                          MFEB(I%) = VAL(FORMAT$(MFEB(I%),M1$))
+000640                          MMAE(I%) = VAL(FORMAT$(MMAE(I%),M1$))
+000650                          MAPR(I%) = VAL(FORMAT$(MAPR(I%),M1$))
+000660                          MMAI(I%) = VAL(FORMAT$(MMAI(I%),M1$))
+000670                          MJUN(I%) = VAL(FORMAT$(MJUN(I%),M1$))
+000680                          MJUL(I%) = VAL(FORMAT$(MJUL(I%),M1$))
+000690                          MAUG(I%) = VAL(FORMAT$(MAUG(I%),M1$))
+000700                          MSEP(I%) = VAL(FORMAT$(MSEP(I%),M1$))
+000710                          MOKT(I%) = VAL(FORMAT$(MOKT(I%),M1$))
+000720                          MNOV(I%) = VAL(FORMAT$(MNOV(I%),M1$))
+000730                          MDEZ(I%) = VAL(FORMAT$(MDEZ(I%),M1$))
+000740                          MGES(I%) = VAL(FORMAT$(MGES(I%),M1$))
+000750                     CASE 2 ! Kg
+000760                          ART.EIN$(I%) = "kg"
+000770                          MJAN(I%) = VAL(FORMAT$(MJAN(I%)/100,M3$))
+000780                          MFEB(I%) = VAL(FORMAT$(MFEB(I%)/100,M3$))
+000790                          MMAE(I%) = VAL(FORMAT$(MMAE(I%)/100,M3$))
+000800                          MAPR(I%) = VAL(FORMAT$(MAPR(I%)/100,M3$))
+000810                          MMAI(I%) = VAL(FORMAT$(MMAI(I%)/100,M3$))
+000820                          MJUN(I%) = VAL(FORMAT$(MJUN(I%)/100,M3$))
+000830                          MJUL(I%) = VAL(FORMAT$(MJUL(I%)/100,M3$))
+000840                          MAUG(I%) = VAL(FORMAT$(MAUG(I%)/100,M3$))
+000850                          MSEP(I%) = VAL(FORMAT$(MSEP(I%)/100,M3$))
+000860                          MOKT(I%) = VAL(FORMAT$(MOKT(I%)/100,M3$))
+000870                          MNOV(I%) = VAL(FORMAT$(MNOV(I%)/100,M3$))
+000880                          MDEZ(I%) = VAL(FORMAT$(MDEZ(I%)/100,M3$))
+000890                          MGES(I%) = VAL(FORMAT$(MGES(I%)/100,M3$))
+000900                     OTHERWISE ! QM
+000910                          ART.EIN$(I%) = "qm"
+000920                          MJAN(I%) = VAL(FORMAT$(MJAN(I%)/100,M3$))
+000930                          MFEB(I%) = VAL(FORMAT$(MFEB(I%)/100,M3$))
+000940                          MMAE(I%) = VAL(FORMAT$(MMAE(I%)/100,M3$))
+000950                          MAPR(I%) = VAL(FORMAT$(MAPR(I%)/100,M3$))
+000960                          MMAI(I%) = VAL(FORMAT$(MMAI(I%)/100,M3$))
+000970                          MJUN(I%) = VAL(FORMAT$(MJUN(I%)/100,M3$))
+000980                          MJUL(I%) = VAL(FORMAT$(MJUL(I%)/100,M3$))
+000990                          MAUG(I%) = VAL(FORMAT$(MAUG(I%)/100,M3$))
+001000                          MSEP(I%) = VAL(FORMAT$(MSEP(I%)/100,M3$))
+001010                          MOKT(I%) = VAL(FORMAT$(MOKT(I%)/100,M3$))
+001020                          MNOV(I%) = VAL(FORMAT$(MNOV(I%)/100,M3$))
+001030                          MDEZ(I%) = VAL(FORMAT$(MDEZ(I%)/100,M3$))
+001040                          MGES(I%) = VAL(FORMAT$(MGES(I%)/100,M3$))
+001050                     CEND 
+001060                GOTO 490
+001070 
+001080           AUSGABE:
+001090                IF I%<=0 ! keine Mengen
+001100                     MSG$(1) = "<li>Keine Mengen gefunden!</li>"
+001110                     GOTO FEHLER
+001120                     IFEND 
+001130                FOR X% = 1 TO I%
+001140                     IF MOD(X%,2)=1 THEN FARBE$ = "#ccccbb"
+001150                     IF MOD(X%,2)=0 THEN FARBE$ = "#ffffff"
+001160                     CALL CGI.TEMPLATE.VAR("zeilen.art.men"&STR$(X%),"<tr bgcolor="""&FARBE$&"""><td align=""right"">"&STR$(ART.NR(X%))&"</td><td align=""left"">"&ART.BEZ$(X%)&"</td><td align=""right"">"&STR$(MJAN(X%))&"</td><td align=""right"">"&STR$(MFEB(X%))&"</td><td align=""right"">"&STR$(MMAE(X%))&"</td><td align=""right"">"&STR$(MAPR(X%))&"</td><td align=""right"">"&STR$(MMAI(X%))&"</td><td align=""right"">"&STR$(MJUN(X%))&"</td><td align=""right"">"&STR$(MJUL(X%))&"</td><td align=""right"">"&STR$(MAUG(X%))&"</td><td align=""right"">"&STR$(MSEP(X%))&"</td><td align=""right"">"&STR$(MOKT(X%))&"</td><td align=""right"">"&STR$(MNOV(X%))&"</td><td align=""right"">"&STR$(MDEZ(X%))&"</td><td align=""right""><i><font color=""#336699""><strong>"&STR$(MGES(X%))&"</strong></font></i></td><td>"&ART.EIN$(X%)&"</td></tr>")
+001170                     NEXT X%
+001180                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+001190                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+001200                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+001210                PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+001220                CALL CGI.TEMPLATE.VAR("msg","Artikelmengen des Kunden "&HEIM$&", im Jahr "&JAHR$)
+001230                CALL CGI.TEMPLATE.VAR("letzte.akt","letzte Berechnung der Mengen: "&W98$)
+001240                CALL CGI.TEMPLATE.VAR("akt.jahr",AKT.JAHR$)
+001250                CALL CGI.TEMPLATE.VAR("vor.jahr",VOR.JAHR$)
+001260                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001270                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+001280                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+001290                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+001300                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+001310                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+001320                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+001330                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001340                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/art_me_aus.tpl")
+001350                GOTO ENDE
+001360           OTHERWISE 
+001370                PRINT "Hacking attempt!"
+001380                GOTO ENDE
+001390           CEND 
+001400 FEHLER:
+001410      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001420      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001430      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001440      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+001450 ENDE:
+001460      END 
+001470 REM -------------------------------------------------------------------
+001480 BERECH:
+001490      IF AKY6$[25:25]="1" THEN MJAN(I%) = MJAN(I%)+W13 \ MFEB(I%) = MFEB(I%)+W14 \ MMAE(I%) = MMAE(I%)+W15 \ MAPR(I%) = MAPR(I%)+W16 \ MMAI(I%) = MMAI(I%)+W17 \ MJUN(I%) = MJUN(I%)+W18 \ MJUL(I%) = MJUL(I%)+W19 \ MAUG(I%) = MAUG(I%)+W20 \ MSEP(I%) = MSEP(I%)+W21 \ MOKT(I%) = MOKT(I%)+W22 \ MNOV(I%) = MNOV(I%)+W23 \ MDEZ(I%) = MDEZ(I%)+W24 \ MGES(I%) = MGES(I%)+W26 ! Rechnungsmenge
+001500 REM Die Gutschriften lass ich erstmal raus... Die Anzeige könnte also verfälscht sein!
+001510      RETURN 
+001520 REM -------------------------------------------------------------------
+001530 ERROR.ROUT:
+001540      RC$ = FN.WFKIFEHL$("art_me_aus",ERR,ERL,CRC$,FL%)
+001550 REM ------------------------------------------------
+001560 L1: ! Kunden lesen KUSTWA.REI
+001570      READ #1,KY1$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,KUE1$,KUE2$,KUE3% \ UNLOCK #1
+001580      RETURN 
+001590 L4: ! Firmenstamm lesen FISTAM.REI
+001600      READ #4,ZNR$&"01":ZNR%,ZA1$,ZA2$ \ UNLOCK #4
+001610      RETURN 
+001620 L6: ! Artikelumsatz lesen ARSTU1.REI
+001630      READ #6,KY6$:AKY6$,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,W13,W14,W15,W16,W17,W18,W19,W20,W21,W22,W23,W24,W25,W26,W27,W28,W29,W30,W98$,W99$ \ UNLOCK #6
+001640      RETURN 
+001650 L61: ! nächsten Artikelumsatz lesen ARSTU1.REI
+001660      READNEXT #6,KY6$:AKY6$,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,W13,W14,W15,W16,W17,W18,W19,W20,W21,W22,W23,W24,W25,W26,W27,W28,W29,W30,W98$,W99$ \ UNLOCK #6
+001670      RETURN 
+001680 L11: ! Artikel lesen ARSTEU.REI
+001690      READ #11,KY11$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$,ASSW$,AS3%,AS4%,AS5%,AS6%,AS7%,ASP1,ASP2,ASP3,ASP4,ASP5,ASP6,ASP7,ASP8,AS8%,AS9%,AS10$,KUE1$,KUE2$,KUE3% \ UNLOCK #11
+001700      RETURN 
+001710 L12: ! Artikelergänzung lesen ARSTW2.REI
+001720      READ #12,KY11$:AKY12$,A201$,A202$,A203$,A204$,A205,A206,A207,A208,A209,A210,A211,A212,A213,A214%,A215%,XX$,XX1$,XX2$,A216%,A217% \ UNLOCK #12
+001730      RETURN 

@@ -1,0 +1,140 @@
+000010 REM Programm zur Übernahme der geänderten Bewohnerdaten
+000020 REM 16.01.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "EMAIL" ! Email Toolkit
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFBEWAEN.INC" ! Änderungsmerker [SUB PROGRAMM]
+000100      INCLUDE "WFALLGEM.INC" ! allgemeine Funktionen
+000110 
+000120      OPTION VERSION 1.0.01,"Mitttermeier & Ungelenk GmbH"
+000130 
+000140      ON ERROR GOTO ERROR.ROUT
+000150 
+000160 REM *******************************************************
+000170      CALL CGI.INIT
+000180      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000190      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("sid",ADDROF(SID$))
+000210      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000220 REM *******************************************************
+000230      CALL CGI.GET("bewnr",ADDROF(BEWNR$)) ! Bewohnernummer
+000240      CALL CGI.GET("bewname",ADDROF(BEWNAME$)) ! Bewohnername
+000250      CALL CGI.GET("zimmer",ADDROF(BEWZIMMER$)) ! Zimmer
+000260      CALL CGI.GET("station",ADDROF(BEWSTATION$)) ! Station
+000270      CALL CGI.GET("opas",ADDROF(BEWOPAS$)) ! Opas Nummer
+000280      CALL CGI.GET("zahler",ADDROF(BEWZAHLART$)) ! Zahlungsart
+000290      CALL CGI.GET("sperrerei",ADDROF(BEWSPREI$)) ! Sperre Reinigung
+000300      CALL CGI.GET("abrechnung",ADDROF(BEWABRECH$)) ! Abrechnungsausw.
+000310      CALL CGI.GET("name1",ADDROF(BEWZAHLER1$)) ! Zahlername 1
+000320      CALL CGI.GET("name2",ADDROF(BEWZAHLER2$)) ! Zahlername 2
+000330      CALL CGI.GET("name3",ADDROF(BEWZAHLER3$)) ! Zahlername 3
+000340      CALL CGI.GET("str",ADDROF(BEWSTRASSE$)) ! Straße
+000350      CALL CGI.GET("plz",ADDROF(BEWPLZ$)) ! Postleitzahl
+000360      CALL CGI.GET("ort",ADDROF(BEWORT$)) ! Ort
+000370      CALL CGI.GET("bank",ADDROF(BEWBANK$)) ! Name der Bank
+000380      CALL CGI.GET("kto",ADDROF(BEWKTO$)) ! Kontonummer
+000390      CALL CGI.GET("blz",ADDROF(BEWBLZ$)) ! Bankleitzahl
+000400      CALL CGI.GET("info",ADDROF(BEWANMERKUNG$)) ! Anmerkung
+000410      CALL CGI.GET("sperre",ADDROF(BEWSPERRE$)) ! Bewohnersperre
+000420      CALL CGI.GET("porto",ADDROF(BEWPORTO$)) ! Porto
+000430 REM *******************************************************
+000440 REM ************ Session prüfen ***************
+000450      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000460      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000470 REM *******************************************
+000480      JAHR$ = DATE$(0)[7:10]
+000490      MONAT$ = DATE$(0)[4:5]
+000500      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite </font></a>"
+000510      NAVIGATION2$ = "<a href=""javascript:document.heim_idx.submit();""><img src=""../../global/pics/heim.png"" border=""0""><font face=""verdana"" size=""2"">Hauptmen&uuml;</font></a>"
+000520      NAVIGATION.FORM$ = "<form action=""/cgi.ops/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""><input type=""hidden"" name=""mita"" value="""&MITA$&"""></form>"
+000530      NAVIGATION.FORM2$ = "<form action=""/cgi.ops/heim_idx"" name=""heim_idx"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""><input type=""hidden"" name=""mita"" value="""&MITA$&"""></form>"
+000540      KNR$ = FKDNR$ \ ZNR$ = "1" \ ZNR% = 1
+000550      SELECT AKTION$
+000560           CASE "Absenden"
+000570                FL% = 1 \ OPEN #1:"/KUSTWA.REI", INPUT INDEXED ! Kundestamm
+000580                FL% = 3 \ OPEN #3:"/BEWOH1.REI", UPDATE INDEXED ! Stamm
+000590                FL% = 5 \ OPEN #5:"/BEWO10.REI", UPDATE INDEXED ! Bewohnerbank
+000600                FL% = 20 \ OPEN #20:"/BEWO11.REI", OUTPUT INDEXED ! Patientennummer
+000610 
+000620           REM Aufbau der Variablen
+000630                ASNR = VAL(BEWNR$) \ ASNR$ = FORMAT$(VAL(BEWNR$),"999999")
+000640                KY3$ = ZNR$&FKDNR$&ASNR$
+000650                GOSUB L3 ! Bewohner lesen und Variablen aus Stamm vorbelegen
+000660                IF TRIM$(BEWOPAS$)<>"" OR TRIM$(BEWOPAS$)="" ! OPAS/Parientennummer löschen
+000670                     KY20$ = ZNR$&ASP3$[54:68]&FKDNR$&ASNR$
+000680                     GOSUB LOE20 ! Patientennummer löschen
+000690                     IFEND 
+000700                ASBE$[1:24] = BEWNAME$
+000710                KNR = VAL(FKDNR$) \ ASP2$ = UCASE$(BEWZIMMER$)
+000720                ASP3$[1:5] = UCASE$(BEWSTATION$) \ ASP3$[6:6] = TRIM$(BEWSPERRE$) \ ASP3$[8:8] = BEWZAHLART$ \ ASP3$[9:18] = BEWKOMM1$ \ ASP3$[19:28] = BEWKOMM2$ \ ASP3$[29:29] = BEWETIABRECH$ \ ASP3$[54:68] = BEWOPAS$ \ ASP3$[69:69] = BEWSPREI$ \ ASP3$[84:84] = BEWPORTO$ \ 
+000730                ASP7% = VAL(BEWABRECH$)
+000740                IF VAL(BEWSPERRE$)>0 ! Bewohner wurde gesperrt, Sperrdatum - Heute
+000750                     ASP3$[36:41] = DATE$(0)[1:2]&DATE$(0)[4:5]&DATE$(0)[9:10]
+000760                     IFEND 
+000770                GOSUB S3 ! Bewohnerstamm schreiben
+000780                IF VAL(BEWZAHLART$)=0 ! keine Überweisung - vorsorg. lö
+000790                     CLEAR BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$,BEWPORTO$
+000800                     GOSUB LOE5 ! ggf. Zahleradresse löschen
+000810                ELSE ! Zahler vorhanden - schreiben BEWO10
+000820                     KY5$ = ZNR$&FKDNR$&FORMAT$(ASNR,"999999")
+000830                     GOSUB L5 ! Zahler lesen
+000840                     BKA1$ = BEWZAHLER1$ \ BKA2$ = BEWZAHLER2$ \ BKA3$ = BEWZAHLER3$ \ BKST$ = BEWSTRASSE$ \ BKPL = VAL(BEWPLZ$) \ BKOR$ = BEWORT$ \ BK1$ = BEWBANK$ \ BK2 = VAL(BEWBLZ$) \ BK3 = VAL(BEWKTO$) \ BK4 = VAL(FKDNR$) \ BKSW$ = ASSW$
+000850                     GOSUB S5 ! Bank schreiben
+000860                     IFEND 
+000870                IF TRIM$(BEWOPAS$)<>"" ! Patientennummer schreiben
+000880                     KY20$ = ZNR$&ASP3$[54:68]&FKDNR$&ASNR$
+000890                     GOSUB S20 ! schreiben BEWO11
+000900                     IFEND 
+000910                MSG$(1) = "Daten wurden erfolgreich ge&auml;ndert!"
+000920           OTHERWISE 
+000930                PRINT "Hacking attempt!" \ STOP 
+000940           CEND 
+000950      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000960      CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000970      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000980      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000990      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001000      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+001010      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+001020      CALL CGI.TEMPLATE.VAR("navigation2",NAVIGATION2$)
+001030      CALL CGI.TEMPLATE.VAR("navigation.form2",NAVIGATION.FORM2$)
+001040      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+001050      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/hinweis.tpl")
+001060 ENDE:
+001070      END \ QUIT 
+001080 REM ------------------------------------------------
+001090 ERROR.ROUT:
+001100      RC$ = FN.WFKIFEHL$("bewo_ae",ERR,ERL,CRC$,FL%)
+001110 
+001120 REM --------------------------------------------------------
+001130 L1: ! Kundenstamm lesen
+001140      FL% = 1 \ READ #1,KY1$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG$,KDB,K1%,K2%,KRB$,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX1$,XX2$,FK1% \ CLEAR FL%
+001150      RETURN 
+001160 REM --------------------------------------------------------
+001170 L3: ! Bewohner lesen BEWOH1.REI
+001180      FL% = 3 \ READ #3,KY3$:AS1%,AS2%,ASFR%,ASKNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,KUE1$,KUE2$,KUE3%
+001190      RETURN 
+001200 L3.1: ! nächsten Bewohner lesen BEWOH1.REI
+001210      FL% = 3 \ READNEXT #3,KY3$:AS1%,AS2%,ASFR%,ASKNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,KUE1$,KUE2$,KUE3%
+001220      RETURN 
+001230 S3: ! Bewohner schreiben BEWOH1.REI
+001240      FL% = 3 \ WRITE #3,KY3$:AS1%,AS2%,ZNR%,VAL(KNR$),VAL(ASNR$),ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,DATE$(0),TIME$(0),FK1%
+001250      RETURN 
+001260 L5: ! Bank lesen BEWO10.REI
+001270      FL% = 5 \ READ #5,ZNR$&KNR$&ASNR$:BKFR%,BKNR,BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$
+001280      RETURN 
+001290 S5: ! Bank schreiben BEWO10.REI
+001300      FL% = 5 \ WRITE #5,ZNR$&KNR$&ASNR$:ZNR%,VAL(KNR$&ASNR$),BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$
+001310      RETURN 
+001320 LOE5: ! Bank löschen BEWO10.REI
+001330      FL% = 5 \ DELETE #5,ZNR$&KNR$&ASNR$
+001340      RETURN 
+001350 S20: ! Index Patientennummer/OPAS Schreiben
+001360      FL% = 20 \ WRITE #20,KY20$:KY20$,DATE$(0),TIME$(0)
+001370      RETURN 
+001380 LOE20: ! Index Patientennummer/OPAS löschen
+001390      FL% = 20 \ DELETE #20,KY20$
+001400      RETURN 

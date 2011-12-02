@@ -1,0 +1,202 @@
+000010 REM Programm zur Anzeige der heim_um_aus.tpl Datei
+000020 REM 06.02.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000180      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000200      CALL CGI.GET("jahr",ADDROF(JAHR$)) ! Umsatzjahr
+000210 REM *******************************************************
+000220 
+000230 REM ************ Session prüfen ***************
+000240      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000250      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000260 REM *******************************************
+000270 
+000280 
+000290      M1$ = "########-" \ M2$ = "#########-" \ M3$ = "#########.##-" \ M4$ = "##########.##-" ! Zahlenformat
+000300      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000310      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000320      AKT.JAHR$ = DATE$(0)[7:10]
+000330      VOR.JAHR$ = STR$(VAL(DATE$(0)[7:10])-1)
+000340      SELECT AKTION$
+000350           CASE "list"
+000360                OPEN #11:"/KUSTWA.REI", INPUT INDEXED 
+000370                KY11$ = "1"&FKDNR$
+000380                GOSUB L11 \ UNLOCK #11 \ CLOSE #11 ! Kunden lesen
+000390                HEIM$ = TRIM$(KA1$)&"; "&TRIM$(KA2$)
+000400                OPEN #5:"/KUSTU1.REI", INPUT INDEXED 
+000410                KY5$ = "1"&JAHR$&FKDNR$
+000420                GOSUB L5 ! Leseanfang KUSTU1
+000430                GOSUB L51 ! nächster Satz KUSTU1
+000440                IF EOF(5) OR AKY5$[2:5]<>JAHR$ OR AKY5$[6:11]>FKDNR$ THEN GOTO AUSGABE
+000450                IF AKY5$[17:17]="1" THEN WJAN = WJAN+K1-K13 \ WFEB = WFEB+K2-K14 \ WMAE = WMAE+K3-K15 \ WAPR = WAPR+K4-K16 \ WMAI = WMAI+K5-K17 \ WJUN = WJUN+K6-K18 \ WJUL = WJUL+K7-K19 \ WAUG = WAUG+K8-K20 \ WSEP = WSEP+K9-K21 \ WOKT = WOKT+K10-K22 \ WNOV = WNOV+K11-K23 \ WDEZ = WDEZ+K12-K24 \ WGES = WGES+K25-K26 ! alle Artikelarten oder Wäsche
+000460                IF AKY5$[17:17]="2" THEN RJAN = RJAN+K1-K13 \ RFEB = RFEB+K2-K14 \ RMAE = RMAE+K3-K15 \ RAPR = RAPR+K4-K16 \ RMAI = RMAI+K5-K17 \ RJUN = RJUN+K6-K18 \ RJUL = RJUL+K7-K19 \ RAUG = RAUG+K8-K20 \ RSEP = RSEP+K9-K21 \ ROKT = ROKT+K10-K22 \ RNOV = RNOV+K11-K23 \ RDEZ = RDEZ+K12-K24 \ RGES = RGES+K25-K26 ! alle Artikelarten oder Reinigung
+000470                IF AKY5$[17:17]="3" THEN HJAN = HJAN+K1-K13 \ HFEB = HFEB+K2-K14 \ HMAE = HMAE+K3-K15 \ HAPR = HAPR+K4-K16 \ HMAI = HMAI+K5-K17 \ HJUN = HJUN+K6-K18 \ HJUL = HJUL+K7-K19 \ HAUG = HAUG+K8-K20 \ HSEP = HSEP+K9-K21 \ HOKT = HOKT+K10-K22 \ HNOV = HNOV+K11-K23 \ HDEZ = HDEZ+K12-K24 \ HGES = HGES+K25-K26 ! alle Artikelarten oder Handel
+000480                IF AKY5$[17:17]="4" OR AKY5$[17:17]="5" THEN MJAN = MJAN+K1-K13 \ MFEB = MFEB+K2-K14 \ MMAE = MMAE+K3-K15 \ MAPR = MAPR+K4-K16 \ MMAI = MMAI+K5-K17 \ MJUN = MJUN+K6-K18 \ MJUL = MJUL+K7-K19 \ MAUG = MAUG+K8-K20 \ MSEP = MSEP+K9-K21 \ MOKT = MOKT+K10-K22 \ MNOV = MNOV+K11-K23 \ MDEZ = MDEZ+K12-K24 \ MGES = MGES+K25-K26 ! Bearbeitungspreis + Miete
+000490                GOTO 430 ! nächster Satz
+000500           AUSGABE: ! Zahlen/Inhalt auf der Webseite ausgeben
+000510                GOSUB SUMMON
+000520                GOSUB PROZENT
+000530                GOSUB SUMJAHR.1
+000540                GOSUB SUMJAHR.2
+000550                GOSUB SUMJAHR.3
+000560                GOSUB SUMJAHR.4
+000570                GOSUB SUMJAHR.0
+000580                ZEILE.JAN$ = "<td align=""left""><i>Jan</i></td><td align=""right"">"&FORMAT$(WJAN/100,M3$)&"</td><td align=""right"">"&FORMAT$(RJAN/100,M3$)&"</td><td align=""right"">"&FORMAT$(HJAN/100,M3$)&"</td><td align=""right"">"&FORMAT$(MJAN/100,M3$)&"</td><td align=""right"">"&FORMAT$(GJAN/100,M4$)&" &euro;</td><td align=""right"">"&FORMAT$(PJAN/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left"">"&BJAN.IMG$&"</td>"
+000590                ZEILE.FEB$ = "<td align=""left""><i>Feb</td><td align=""right"">"&FORMAT$(WFEB/100,M3$)&"</td><td align=""right"">"&FORMAT$(RFEB/100,M3$)&"</td><td align=""right"">"&FORMAT$(HFEB/100,M3$)&"</td><td align=""right"">"&FORMAT$(MFEB/100,M3$)&"</td><td align=""right"">"&FORMAT$(GFEB/100,M4$)&" &euro;</td><td align=""right"">"&FORMAT$(PFEB/100,"###.##")&" %</td><td align=""left"">"&BFEB.IMG$&"</td>"
+000600                ZEILE.MRZ$ = "<td align=""left""><i>Mrz</i></td><td align=""right"">"&FORMAT$(WMAE/100,M3$)&"</td><td align=""right"">"&FORMAT$(RMAE/100,M3$)&"</td><td align=""right"">"&FORMAT$(HMAE/100,M3$)&"</td><td align=""right"">"&FORMAT$(MMAE/100,M3$)&"</td><td align=""right"">"&FORMAT$(GMAE/100,M4$)&" &euro;</td><td align=""right"">"&FORMAT$(PMAE/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left"">"&BMRZ.IMG$&"</td>"
+000610                ZEILE.APR$ = "<td align=""left""><i>Apr</i></td><td align=""right"">"&FORMAT$(WAPR/100,M3$)&"</td><td align=""right"">"&FORMAT$(RAPR/100,M3$)&"</td><td align=""right"">"&FORMAT$(HAPR/100,M3$)&"</td><td align=""right"">"&FORMAT$(MAPR/100,M3$)&"</td><td align=""right"">"&FORMAT$(GAPR/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PAPR/100,"###.##")&" %</td><td align=""left"">"&BAPR.IMG$&"</td>"
+000620                ZEILE.MAI$ = "<td align=""left""><i>Mai</i></td><td align=""right"">"&FORMAT$(WMAI/100,M3$)&"</td><td align=""right"">"&FORMAT$(RMAI/100,M3$)&"</td><td align=""right"">"&FORMAT$(HMAI/100,M3$)&"</td><td align=""right"">"&FORMAT$(MMAI/100,M3$)&"</td><td align=""right"">"&FORMAT$(GMAI/100,M4$)&" &euro;</td><td align=""right"">"&FORMAT$(PMAI/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left"">"&BMAI.IMG$&"</td>"
+000630                ZEILE.JUN$ = "<td align=""left""><i>Jun</i></td><td align=""right"">"&FORMAT$(WJUN/100,M3$)&"</td><td align=""right"">"&FORMAT$(RJUN/100,M3$)&"</td><td align=""right"">"&FORMAT$(HJUN/100,M3$)&"</td><td align=""right"">"&FORMAT$(MJUN/100,M3$)&"</td><td align=""right"">"&FORMAT$(GJUN/100,M4$)&" &euro;</td><td align=""right"">"&FORMAT$(PJUN/100,"###.##")&" %</td><td align=""left"">"&BJUN.IMG$&"</td>"
+000640                ZEILE.JUL$ = "<td align=""left""><i>Jul</i></td><td align=""right"">"&FORMAT$(WJUL/100,M3$)&"</td><td align=""right"">"&FORMAT$(RJUL/100,M3$)&"</td><td align=""right"">"&FORMAT$(HJUL/100,M3$)&"</td><td align=""right"">"&FORMAT$(MJUL/100,M3$)&"</td><td align=""right"">"&FORMAT$(GJUL/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PJUL/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left"">"&BJUL.IMG$&"</td>"
+000650                ZEILE.AUG$ = "<td align=""left""><i>Aug</i></td><td align=""right"">"&FORMAT$(WAUG/100,M3$)&"</td><td align=""right"">"&FORMAT$(RAUG/100,M3$)&"</td><td align=""right"">"&FORMAT$(HAUG/100,M3$)&"</td><td align=""right"">"&FORMAT$(MAUG/100,M3$)&"</td><td align=""right"">"&FORMAT$(GAUG/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PAUG/100,"###.##")&" %</td><td align=""left"">"&BAUG.IMG$&"</td>"
+000660                ZEILE.SEP$ = "<td align=""left""><i>Sep</i></td><td align=""right"">"&FORMAT$(WSEP/100,M3$)&"</td><td align=""right"">"&FORMAT$(RSEP/100,M3$)&"</td><td align=""right"">"&FORMAT$(HSEP/100,M3$)&"</td><td align=""right"">"&FORMAT$(MSEP/100,M3$)&"</td><td align=""right"">"&FORMAT$(GSEP/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PSEP/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left"">"&BSEP.IMG$&"</td>"
+000670                ZEILE.OKT$ = "<td align=""left""><i>Okt</i></td><td align=""right"">"&FORMAT$(WOKT/100,M3$)&"</td><td align=""right"">"&FORMAT$(ROKT/100,M3$)&"</td><td align=""right"">"&FORMAT$(HOKT/100,M3$)&"</td><td align=""right"">"&FORMAT$(MOKT/100,M3$)&"</td><td align=""right"">"&FORMAT$(GOKT/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(POKT/100,"###.##")&" %</td><td align=""left""> "&BOKT.IMG$&"</td>"
+000680                ZEILE.NOV$ = "<td align=""left""><i>Nov</i></td><td align=""right"">"&FORMAT$(WNOV/100,M3$)&"</td><td align=""right"">"&FORMAT$(RNOV/100,M3$)&"</td><td align=""right"">"&FORMAT$(HNOV/100,M3$)&"</td><td align=""right"">"&FORMAT$(MNOV/100,M3$)&"</td><td align=""right"">"&FORMAT$(GNOV/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PNOV/100,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left""> "&BNOV.IMG$&"</td>"
+000690                ZEILE.DEZ$ = "<td align=""left""><i>Dez</i></td><td align=""right"">"&FORMAT$(WDEZ/100,M3$)&"</td><td align=""right"">"&FORMAT$(RDEZ/100,M3$)&"</td><td align=""right"">"&FORMAT$(HDEZ/100,M3$)&"</td><td align=""right"">"&FORMAT$(MDEZ/100,M3$)&"</td><td align=""right"">"&FORMAT$(GDEZ/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PDEZ/100,"###.##")&" %</td><td align=""left""> "&BDEZ.IMG$&"</td>"
+000700                ZEILE.GES$ = "<td align=""left""><i><strong>Gesamt</strong></i></td><td align=""right"">"&FORMAT$(JWGES/100,M3$)&"</td><td align=""right"">"&FORMAT$(JRGES/100,M3$)&"</td><td align=""right"">"&FORMAT$(JHGES/100,M3$)&"</td><td align=""right"">"&FORMAT$(JMGES/100,M3$)&"</td><td align=""right"">"&FORMAT$(JJJGES/100,M4$)&" &euro; </td><td align=""right"">"&FORMAT$(PGES,"###.##")&" %</td><td bgcolor=""#ffffff"" align=""left""> "&BGES.IMG$&"</td>"
+000710 
+000720 
+000730                THEMA1$ = "Kundenums&auml;tze <br />"
+000740                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000750                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000760                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000770                PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+000780                CALL CGI.TEMPLATE.VAR("msg","Ums&auml;tze des Kunden "&HEIM$&", im Jahr "&JAHR$)
+000781                CALL CGI.TEMPLATE.VAR("letzte.akt","letzte Berechnung des Umsatzes: "&K98$)
+000790                CALL CGI.TEMPLATE.VAR("akt.jahr",AKT.JAHR$)
+000800                CALL CGI.TEMPLATE.VAR("vor.jahr",VOR.JAHR$)
+000810                CALL CGI.TEMPLATE.VAR("umsatz.zeile.jan",ZEILE.JAN$)
+000820                CALL CGI.TEMPLATE.VAR("umsatz.zeile.feb",ZEILE.FEB$)
+000830                CALL CGI.TEMPLATE.VAR("umsatz.zeile.mrz",ZEILE.MRZ$)
+000840                CALL CGI.TEMPLATE.VAR("umsatz.zeile.apr",ZEILE.APR$)
+000850                CALL CGI.TEMPLATE.VAR("umsatz.zeile.mai",ZEILE.MAI$)
+000860                CALL CGI.TEMPLATE.VAR("umsatz.zeile.jun",ZEILE.JUN$)
+000870                CALL CGI.TEMPLATE.VAR("umsatz.zeile.jul",ZEILE.JUL$)
+000880                CALL CGI.TEMPLATE.VAR("umsatz.zeile.aug",ZEILE.AUG$)
+000890                CALL CGI.TEMPLATE.VAR("umsatz.zeile.sep",ZEILE.SEP$)
+000900                CALL CGI.TEMPLATE.VAR("umsatz.zeile.okt",ZEILE.OKT$)
+000910                CALL CGI.TEMPLATE.VAR("umsatz.zeile.nov",ZEILE.NOV$)
+000920                CALL CGI.TEMPLATE.VAR("umsatz.zeile.dez",ZEILE.DEZ$)
+000930                CALL CGI.TEMPLATE.VAR("umsatz.zeile.ges",ZEILE.GES$)
+000940                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000950                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000960                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000970                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000980                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000990                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+001000                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+001010                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001020                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/heim_um_aus.tpl")
+001030                GOTO ENDE
+001040           OTHERWISE 
+001050                PRINT "Hacking attempt!"
+001060                GOTO ENDE
+001070           CEND 
+001080 ENDE:
+001090      END 
+001100 REM -------------------------------------------------------------------
+001110 PROZENT: ! Prozentanteil am Umsatz berechnen
+001120      IF GJAN>0 THEN PJAN = ROUND(GJAN/GGES*10000,0) ! Prozentanteil
+001130      IF GFEB>0 THEN PFEB = ROUND(GFEB/GGES*10000,0)
+001140      IF GMAE>0 THEN PMAE = ROUND(GMAE/GGES*10000,0)
+001150      IF GAPR>0 THEN PAPR = ROUND(GAPR/GGES*10000,0)
+001160      IF GMAI>0 THEN PMAI = ROUND(GMAI/GGES*10000,0)
+001170      IF GJUN>0 THEN PJUN = ROUND(GJUN/GGES*10000,0)
+001180      IF GJUL>0 THEN PJUL = ROUND(GJUL/GGES*10000,0)
+001190      IF GAUG>0 THEN PAUG = ROUND(GAUG/GGES*10000,0)
+001200      IF GSEP>0 THEN PSEP = ROUND(GSEP/GGES*10000,0)
+001210      IF GOKT>0 THEN POKT = ROUND(GOKT/GGES*10000,0)
+001220      IF GNOV>0 THEN PNOV = ROUND(GNOV/GGES*10000,0)
+001230      IF GDEZ>0 THEN PDEZ = ROUND(GDEZ/GGES*10000,0)
+001240      BJAN = ROUND(PJAN,-2)/100
+001250      BFEB = ROUND(PFEB,-2)/100
+001260      BMRZ = ROUND(PMAE,-2)/100
+001270      BAPR = ROUND(PAPR,-2)/100
+001280      BMAI = ROUND(PMAI,-2)/100
+001290      BJUN = ROUND(PJUN,-2)/100
+001300      BJUL = ROUND(PJUL,-2)/100
+001310      BAUG = ROUND(PAUG,-2)/100
+001320      BSEP = ROUND(PSEP,-2)/100
+001330      BOKT = ROUND(POKT,-2)/100
+001340      BNOV = ROUND(PNOV,-2)/100
+001350      BDEZ = ROUND(PDEZ,-2)/100
+001360      PGES = 100
+001370      BJAN.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BJAN)&""">"
+001380      BFEB.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BFEB)&""">"
+001390      BMRZ.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BMRZ)&""">"
+001400      BAPR.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BAPR)&""">"
+001410      BMAI.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BMAI)&""">"
+001420      BJUN.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BJUN)&""">"
+001430      BJUL.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BJUL)&""">"
+001440      BAUG.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BAUG)&""">"
+001450      BSEP.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BSEP)&""">"
+001460      BOKT.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BOKT)&""">"
+001470      BNOV.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BNOV)&""">"
+001480      BDEZ.IMG$ = "<img src=""/ops/pics/balken.png"" height=""12"" width="""&STR$(BDEZ)&""">"
+001490      BGES.IMG$ = "<img src=""/ops/pics/balken_blau.png"" height=""12"" width=""100"">"
+001500      RETURN 
+001510 REM -------------------------------------------------------------------
+001520 SUMMON: ! Monate summieren
+001530      GJAN = GJAN+WJAN+RJAN+HJAN+MJAN ! Jan Gesamt
+001540      GFEB = GFEB+WFEB+RFEB+HFEB+MFEB ! Feb Gesamt
+001550      GMAE = GMAE+WMAE+RMAE+HMAE+MMAE ! Mrz Gesamt
+001560      GAPR = GAPR+WAPR+RAPR+HAPR+MAPR ! Apr Gesamt
+001570      GMAI = GMAI+WMAI+RMAI+HMAI+MMAI ! Mai Gesamt
+001580      GJUN = GJUN+WJUN+RJUN+HJUN+MJUN ! Jun Gesamt
+001590      GJUL = GJUL+WJUL+RJUL+HJUL+MJUL ! Jul Gesamt
+001600      GAUG = GAUG+WAUG+RAUG+HAUG+MAUG ! Aug Gesamt
+001610      GSEP = GSEP+WSEP+RSEP+HSEP+MSEP ! Sep Gesamt
+001620      GOKT = GOKT+WOKT+ROKT+HOKT+MOKT ! Okt Gesamt
+001630      GNOV = GNOV+WNOV+RNOV+HNOV+MNOV ! Nov Gesamt
+001640      GDEZ = GDEZ+WDEZ+RDEZ+HDEZ+MDEZ ! Dez Gesamt
+001650      GGES = GGES+WGES+RGES+HGES+MGES ! Jahr Gesamt
+001660      RETURN 
+001670 REM --------------------------------------------------------------------
+001680 SUMJAHR.0: ! Jahr Gesamt
+001690      JJGES = GJAN+GFEB+GMAE+GAPR+GMAI+GJUN+GJUL+GAUG+GSEP+GOKT+GNOV+GDEZ
+001700      JJJGES = JJJGES+JJGES
+001710      RETURN 
+001720 REM -------------------------------------------------------------------
+001730 SUMJAHR.1: ! Wäsche Gesamt
+001740      JWGES = WJAN+WFEB+WMAE+WAPR+WMAI+WJUN+WJUL+WAUG+WSEP+WOKT+WNOV+WDEZ
+001750      RETURN 
+001760 REM -------------------------------------------------------------------
+001770 SUMJAHR.2: ! Reinigung Gesamt
+001780      JRGES = RJAN+RFEB+RMAE+RAPR+RMAI+RJUN+RJUL+RAUG+RSEP+ROKT+RNOV+RDEZ
+001790      RETURN 
+001800 REM -------------------------------------------------------------------
+001810 SUMJAHR.3: ! Handel Gesamt
+001820      JHGES = HJAN+HFEB+HMAE+HAPR+HMAI+HJUN+HJUL+HAUG+HSEP+HOKT+HNOV+HDEZ
+001830      RETURN 
+001840 REM -------------------------------------------------------------------
+001850 SUMJAHR.4: ! Miete Geamt
+001860      JMGES = MJAN+MFEB+MMAE+MAPR+MMAI+MJUN+MJUL+MAUG+MSEP+MOKT+MNOV+MDEZ
+001870      RETURN 
+001880 REM ------------------------------------------------
+001890 ERROR.ROUT:
+001900      RC$ = FN.WFKIFEHL$("heim_um_aus",ERR,ERL,CRC$,FL%)
+001910 REM ------------------------------------------------
+001920 L5: ! Kundenumsatz lesen KUSTU1.REI
+001930      READ #5,KY5$:AKY5$,K1,K2,K3,K4,K5,K6,K7,K8,K9,K10,K11,K12,K13,K14,K15,K16,K17,K18,K19,K20,K21,K22,K23,K24,K25,K26,K27,K28,K29,K30,K98$,K99$ \ UNLOCK #5
+001940      RETURN 
+001950 L51: ! nächsten Kundenumsatz lesen KUSTU1.REI
+001960      READNEXT #5,KY5$:AKY5$,K1,K2,K3,K4,K5,K6,K7,K8,K9,K10,K11,K12,K13,K14,K15,K16,K17,K18,K19,K20,K21,K22,K23,K24,K25,K26,K27,K28,K29,K30,K98$,K99$ \ UNLOCK #5
+001970      RETURN 
+001980 REM ------------------------------------------------
+001990 L11:      ! Kundenstamm lesen
+002000      READ #11,KY11$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX$,XX$,FK1%
+002010      RETURN 

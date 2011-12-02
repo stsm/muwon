@@ -1,0 +1,325 @@
+000010 REM Programm zur Anzeige der art_ve_aus.tpl Datei
+000020 REM Bewohnerartikel Vergleiche
+000030 REM Schmidt - 26.02.2009 (Programmerstellung)
+000040 
+000050 REM *******************************************************
+000060      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000070      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000080      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000090      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120      OPTION BASE 1
+000130 
+000140      ON ERROR GOTO ERROR.ROUT
+000150 
+000160      DIM BEW.ART.JM(10,15),ABEW.ART.JM(10,15)
+000170      DIM BMON.AUS$(12),BMON.VGL$(12),BMON.PRZ$(12)
+000180 
+000190 REM *******************************************************
+000200      CALL CGI.INIT
+000210      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000220      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000230      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000240      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000250      CALL CGI.GET("methode",ADDROF(METHODE$)) ! BewohnernNr/Namenliste
+000260      CALL CGI.GET("namen",ADDROF(GBEWONA$)) ! Bewohnernummer
+000270      CALL CGI.GET("nummer",ADDROF(GBEWONR$)) ! Bewohnernummer
+000280      CALL CGI.GET("suchna",ADDROF(GBEWOSU$)) ! Bewohnersuchname
+000290      CALL CGI.GET("artikel",ADDROF(ARTIKEL$)) ! Artikel-Nr
+000300      CALL CGI.GET("vergleich",ADDROF(VERGLEICH$)) ! Vergleichsoptionen
+000310      CALL CGI.GET("jahr",ADDROF(JAHR$)) ! Jahr
+000320 REM *******************************************************
+000330 REM ************ Session prüfen ***************
+000340      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000350      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000360 REM *******************************************
+000370 
+000380      IF METHODE$="namen" THEN EINGABE$ = GBEWONA$ ! ggf Übernahme
+000390      IF METHODE$="nummer" THEN EINGABE$ = GBEWONR$ ! ggf. Übernahme
+000400      IF METHODE$="suchna" THEN EINGABE$ = GBEWOSU$ ! ggf. Übernahme
+000410 
+000420      ART.NR$ = FORMAT$(VAL(ARTIKEL$),"999999")
+000430      BEW.NR$ = FORMAT$(VAL(EINGABE$),"999999")
+000440      STIL$ = "style=""font-family:verdana; background-color:ffffff; text-align:right; font-size: 10pt;"" "
+000450 
+000460      FONT$ = "<font color=""#000000"" face=""verdana"" size=""2"">" ! Schriftart
+000470 
+000480      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000490      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000500      PARA3$ = FN.FORM.HIDDEN$("mita",MITA$)
+000510      PARA4$ = FN.FORM.HIDDEN$("sid",SID$)
+000520      SELECT LCASE$(AKTION$)
+000530 
+000540           CASE "anzeigen"
+000550                FL% = 11 \ OPEN #11:"/BEWOH1.REI", INPUT INDEXED \ CLEAR FL%
+000560                FL% = 12 \ OPEN #12:"/ARSTEU.REI", INPUT INDEXED \ CLEAR FL%
+000570                FL% = 13 \ OPEN #13:"/BEUM"&JAHR$&".REI", INPUT INDEXED \ CLEAR FL%
+000580                SELECT VAL(EINGABE$) ! Bewohnernummer
+000590                     CASE 0 ! alle Bewohner
+000600                          KY13$ = "1"&FKDNR$
+000610                          VGL.BEW% = 0
+000620                     OTHERWISE  ! spezieller Bewohner
+000630                          KY13$ = "1"&FKDNR$&BEW.NR$
+000640                          VGL.BEW% = 1
+000650                     CEND 
+000660                SELECT VAL(ARTIKEL$) ! Artikelnummer
+000670                     CASE 0 ! alle Artikel
+000680                          KY13$ = KY13$
+000690                          VGL.ART% = 0
+000700                     OTHERWISE  ! spezieller Artikel
+000710                          IF VGL.BEW%<>0
+000720                               KY13$ = KY13$&ART.NR$
+000730                          ELSE 
+000740                               KY13$ = KY13$
+000750                               IFEND 
+000760                          VGL.ART% = 1
+000770                     CEND 
+000780                IF (VGL.BEW%=0 AND VGL.ART%=0) OR (VGL.BEW%=0 AND VGL.ART%=1) AND VAL(VERGLEICH$)=0
+000790                     MSG$(1) = "Sie k&ouml;nnen nicht '<i>alle/einen</i>' Artikel zu '<i>allen</i>' Bewohnern des eigenen Hauses vergleichen!<br />"
+000800                     GOTO FEHLER
+000810                     IFEND 
+000820                IF VGL.BEW%=0 AND VGL.ART%=1   ! alle Bew u. 1 Artikel
+000830                     GOSUB L13 ! ersten Satz BEUMnnnn.REI
+000840                     GOSUB L13.1 ! nächsten Satz BEUMnnnn.REI
+000850                     IF EOF(13) OR KY13$[2:7]<>FKDNR$ THEN GOTO VERGLEICH
+000860                     IF KY13$[14:19]<>ART.NR$ THEN GOTO 840
+000870                     I% = I%+1
+000880                     BEW.ART.JM(1,1) = VAL(KY13$[14:19])
+000890                     BEW.ART.JM(1,2) = BEW.ART.JM(1,2)+BM26
+000900                     BEW.ART.JM(1,3) = I%
+000910                     BEW.ART.JM(1,4) = BEW.ART.JM(1,4)+BM13
+000920                     BEW.ART.JM(1,5) = BEW.ART.JM(1,5)+BM14
+000930                     BEW.ART.JM(1,6) = BEW.ART.JM(1,6)+BM15
+000940                     BEW.ART.JM(1,7) = BEW.ART.JM(1,7)+BM16
+000950                     BEW.ART.JM(1,8) = BEW.ART.JM(1,8)+BM17
+000960                     BEW.ART.JM(1,9) = BEW.ART.JM(1,9)+BM18
+000970                     BEW.ART.JM(1,10) = BEW.ART.JM(1,10)+BM19
+000980                     BEW.ART.JM(1,11) = BEW.ART.JM(1,11)+BM20
+000990                     BEW.ART.JM(1,12) = BEW.ART.JM(1,12)+BM21
+001000                     BEW.ART.JM(1,13) = BEW.ART.JM(1,13)+BM22
+001010                     BEW.ART.JM(1,14) = BEW.ART.JM(1,14)+BM23
+001020                     BEW.ART.JM(1,15) = BEW.ART.JM(1,15)+BM24
+001030                     GOTO 840
+001040                     IFEND 
+001050                IF VGL.BEW%=1 AND VGL.ART%=1 ! 1 Bewohner u. 1 Artikel
+001060                     GOSUB L13 ! ersten Satz BEUMnnnn.REI
+001070                     IF EOF(13) THEN GOTO VERGLEICH
+001080                     IF KY13$[2:7]<>FKDNR$ OR KY13$[8:13]<>BEW.NR$ OR KY13$[14:19]<>ART.NR$ THEN GOTO VERGLEICH
+001090 
+001100                     I% = I%+1
+001110                     BEW.ART.JM(1,1) = VAL(KY13$[14:19])
+001120                     BEW.ART.JM(1,2) = BEW.ART.JM(1,2)+BM26
+001130                     BEW.ART.JM(1,3) = I%
+001140                     BEW.ART.JM(1,4) = BEW.ART.JM(1,4)+BM13
+001150                     BEW.ART.JM(1,5) = BEW.ART.JM(1,5)+BM14
+001160                     BEW.ART.JM(1,6) = BEW.ART.JM(1,6)+BM15
+001170                     BEW.ART.JM(1,7) = BEW.ART.JM(1,7)+BM16
+001180                     BEW.ART.JM(1,8) = BEW.ART.JM(1,8)+BM17
+001190                     BEW.ART.JM(1,9) = BEW.ART.JM(1,9)+BM18
+001200                     BEW.ART.JM(1,10) = BEW.ART.JM(1,10)+BM19
+001210                     BEW.ART.JM(1,11) = BEW.ART.JM(1,11)+BM20
+001220                     BEW.ART.JM(1,12) = BEW.ART.JM(1,12)+BM21
+001230                     BEW.ART.JM(1,13) = BEW.ART.JM(1,13)+BM22
+001240                     BEW.ART.JM(1,14) = BEW.ART.JM(1,14)+BM23
+001250                     BEW.ART.JM(1,15) = BEW.ART.JM(1,15)+BM24
+001260                     GOSUB L13.1 ! nächsten Satz
+001270                     GOTO 1070
+001280                     IFEND 
+001290           VERGLEICH:
+001300                IF I%=0 ! Bewohner hat den Artikel nicht
+001310                     MSG$(1) = "<li>Der Bewohner hat den eingegebenen Artikel nicht!</li><br/>"
+001320                     GOTO FEHLER
+001330                     IFEND 
+001340                SELECT VAL(VERGLEICH$) ! Vergleichsoptionen
+001350                     CASE 0 ! eigene Bewohner
+001360                          KY13$ = "1"&FKDNR$
+001370                          VGL.OP% = 0
+001380                     OTHERWISE ! alle Bewohner aller Häuser
+001390                          KY13$ = "1"
+001400                          VGL.OP% = 1
+001410                     CEND 
+001420                IF VGL.OP%=1 AND VGL.ART%=1 AND VGL.BEW%=1 ! alle Häuser. - 1 Artikel
+001430                     GOSUB L13 ! ersten Satz BEUMnnnn.REI
+001440                     GOSUB L13.1 ! nächsten Satz BEUMnnnn.REI
+001450                     IF EOF(13) THEN GOTO AUSGABE
+001460                     IF KY13$[8:13]=BEW.NR$ AND KY13$[2:7]=FKDNR$ THEN GOTO 1440
+001470                     IF KY13$[14:19]<>ART.NR$ THEN GOTO 1440
+001480                     J% = J%+1
+001490                     ABEW.ART.JM(1,1) = VAL(KY13$[14:19])
+001500                     ABEW.ART.JM(1,2) = ABEW.ART.JM(1,2)+BM26
+001510                     ABEW.ART.JM(1,3) = J%
+001520                     ABEW.ART.JM(1,4) = ABEW.ART.JM(1,4)+BM13
+001530                     ABEW.ART.JM(1,5) = ABEW.ART.JM(1,5)+BM14
+001540                     ABEW.ART.JM(1,6) = ABEW.ART.JM(1,6)+BM15
+001550                     ABEW.ART.JM(1,7) = ABEW.ART.JM(1,7)+BM16
+001560                     ABEW.ART.JM(1,8) = ABEW.ART.JM(1,8)+BM17
+001570                     ABEW.ART.JM(1,9) = ABEW.ART.JM(1,9)+BM18
+001580                     ABEW.ART.JM(1,10) = ABEW.ART.JM(1,10)+BM19
+001590                     ABEW.ART.JM(1,11) = ABEW.ART.JM(1,11)+BM20
+001600                     ABEW.ART.JM(1,12) = ABEW.ART.JM(1,12)+BM21
+001610                     ABEW.ART.JM(1,13) = ABEW.ART.JM(1,13)+BM22
+001620                     ABEW.ART.JM(1,14) = ABEW.ART.JM(1,14)+BM23
+001630                     ABEW.ART.JM(1,15) = ABEW.ART.JM(1,15)+BM24
+001640                     GOTO 1440
+001650                     IFEND 
+001660                IF VGL.OP%=0 AND VGL.ART%=1 AND VGL.BEW%=1 ! eigene Bew. - 1 Artikel
+001670                     GOSUB L13 ! ersten Satz BEUMnnnn.REI
+001680                     GOSUB L13.1 ! nächsten Satz BEUMnnn.REI
+001690                     IF EOF(13) OR KY13$[2:7]<>FKDNR$ THEN GOTO AUSGABE
+001700                     IF KY13$[14:19]<>ART.NR$ OR KY13$[8:13]=BEW.NR$ THEN GOTO 1680
+001710                     J% = J%+1
+001720                     ABEW.ART.JM(1,1) = VAL(KY13$[14:19])
+001730                     ABEW.ART.JM(1,2) = ABEW.ART.JM(1,2)+BM26
+001740                     ABEW.ART.JM(1,3) = J%
+001750                     ABEW.ART.JM(1,4) = ABEW.ART.JM(1,4)+BM13
+001760                     ABEW.ART.JM(1,5) = ABEW.ART.JM(1,5)+BM14
+001770                     ABEW.ART.JM(1,6) = ABEW.ART.JM(1,6)+BM15
+001780                     ABEW.ART.JM(1,7) = ABEW.ART.JM(1,7)+BM16
+001790                     ABEW.ART.JM(1,8) = ABEW.ART.JM(1,8)+BM17
+001800                     ABEW.ART.JM(1,9) = ABEW.ART.JM(1,9)+BM18
+001810                     ABEW.ART.JM(1,10) = ABEW.ART.JM(1,10)+BM19
+001820                     ABEW.ART.JM(1,11) = ABEW.ART.JM(1,11)+BM20
+001830                     ABEW.ART.JM(1,12) = ABEW.ART.JM(1,12)+BM21
+001840                     ABEW.ART.JM(1,13) = ABEW.ART.JM(1,13)+BM22
+001850                     ABEW.ART.JM(1,14) = ABEW.ART.JM(1,14)+BM23
+001860                     ABEW.ART.JM(1,15) = ABEW.ART.JM(1,15)+BM24
+001870                     GOTO 1680
+001880                     IFEND 
+001890                IF VGL.OP%=1 AND VGL.ART%=1 AND VGL.BEW%=0 ! alle eigenen zu allen anderen - 1 Artikel
+001900                     GOSUB L13 ! ersten Satz BEUMnnn.REI
+001910                     GOSUB L13.1 ! nächsten SAtz BEUMnnnn.REI
+001920                     IF EOF(13) THEN GOTO AUSGABE
+001930                     IF KY13$[14:19]<>ART.NR$ OR KY13$[2:7]=FKDNR$ THEN GOTO 1910
+001940                     J% = J%+1
+001950                     ABEW.ART.JM(1,1) = VAL(KY13$[14:19])
+001960                     ABEW.ART.JM(1,2) = ABEW.ART.JM(1,2)+BM26
+001970                     ABEW.ART.JM(1,3) = J%
+001980                     ABEW.ART.JM(1,4) = ABEW.ART.JM(1,4)+BM13
+001990                     ABEW.ART.JM(1,5) = ABEW.ART.JM(1,5)+BM14
+002000                     ABEW.ART.JM(1,6) = ABEW.ART.JM(1,6)+BM15
+002010                     ABEW.ART.JM(1,7) = ABEW.ART.JM(1,7)+BM16
+002020                     ABEW.ART.JM(1,8) = ABEW.ART.JM(1,8)+BM17
+002030                     ABEW.ART.JM(1,9) = ABEW.ART.JM(1,9)+BM18
+002040                     ABEW.ART.JM(1,10) = ABEW.ART.JM(1,10)+BM19
+002050                     ABEW.ART.JM(1,11) = ABEW.ART.JM(1,11)+BM20
+002060                     ABEW.ART.JM(1,12) = ABEW.ART.JM(1,12)+BM21
+002070                     ABEW.ART.JM(1,13) = ABEW.ART.JM(1,13)+BM22
+002080                     ABEW.ART.JM(1,14) = ABEW.ART.JM(1,14)+BM23
+002090                     ABEW.ART.JM(1,15) = ABEW.ART.JM(1,15)+BM24
+002100                     GOTO 1910
+002110                     IFEND 
+002120                GOTO AUSGABE
+002130           AUSGABE: ! Ausgabe der Seite
+002140                IF J%=0 ! kein anderer Bewohner hat den Artikel
+002150                     MSG$(1) = "<li>Kein anderer Bewohner hat diesen Artikel!<br/>"
+002160                     GOTO FEHLER
+002170                     IFEND 
+002180                IF VAL(BEW.NR$)<>0 ! spez. Bewohner wurde verglichen
+002190                     KY11$ = "1"&FKDNR$&BEW.NR$
+002200                     GOSUB L11 ! Bewohnerstamm lesen
+002210                     BEW.NAME$ = TRIM$(BASBE$) ! Bewohnername
+002220                     BEW.JD = ROUND(BEW.ART.JM(1,2)/12,1)
+002230                     BEW.JD$ = FORMAT$(BEW.JD,"###.#")
+002240                ELSE 
+002250                     BEW.NAME$ = "alle"
+002260                     BEW.JD = ROUND((BEW.ART.JM(1,2)/I%)/12,1)
+002270                     BEW.JD$ = FORMAT$(BEW.JD,"###.#")
+002280                     IFEND 
+002290                CALL CGI.TEMPLATE.VAR("bew.name",BEW.NAME$)
+002300                KY12$ = "1000000"&ART.NR$ ! Grundartikel
+002310                GOSUB L12 ! Grundartikel lesen
+002320                CALL CGI.TEMPLATE.VAR("bew.art",STR$(VAL(ART.NR$))&" - "&ASBE$)
+002330                IF VAL(VERGLEICH$)=0
+002340                     BEW.VGL$ = "zu eigenen Bewohnern"
+002350                     ABEW.JD = ROUND((ABEW.ART.JM(1,2)/J%)/12,1)
+002360                     ABEW.JD$ = FORMAT$(ABEW.JD,"###.#")
+002370                ELSE 
+002380                     BEW.VGL$ = "zu allen Bewohnern"
+002390                     ABEW.JD = ROUND((ABEW.ART.JM(1,2)/J%)/12,1)
+002400                     ABEW.JD$ = FORMAT$(ABEW.JD,"###.#")
+002410                     IFEND 
+002420                CALL CGI.TEMPLATE.VAR("bew.vgl",BEW.VGL$)
+002430                FOR X% = 1 TO 1
+002440                     IF VAL(BEW.NR$)<>0 ! 1 Bewohner
+002450                          VGL.AG.ZEILE$ = "<tr "&STIL$&"><td><i>Ausgang</i></td><td>"&STR$(BEW.ART.JM(1,4))&"</td><td>"&STR$(BEW.ART.JM(1,5))&"</td><td>"&STR$(BEW.ART.JM(1,6))&"</td><td>"&STR$(BEW.ART.JM(1,7))&"</td><td>"&STR$(BEW.ART.JM(1,8))&"</td><td>"&STR$(BEW.ART.JM(1,9))&"</td><td>"&STR$(BEW.ART.JM(1,10))&"</td><td>"&STR$(BEW.ART.JM(1,11))&"</td><td>"&STR$(BEW.ART.JM(1,12))&"</td><td>"&STR$(BEW.ART.JM(1,13))&"</td><td>"&STR$(BEW.ART.JM(1,14))&"</td><td>"&STR$(BEW.ART.JM(1,15))&"</td><td><i>"&STR$(BEW.ART.JM(1,2))&"</i></td><td><strong>"&BEW.JD$&"</strong></td></tr>"
+002460                     ELSE  ! mehrere Bewohner - Zahlen runden
+002470                          VGL.AG.ZEILE$ = "<tr "&STIL$&"><td><i>Ausgang</i></td><td>"&STR$(ROUND(BEW.ART.JM(1,4)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,5)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,6)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,7)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,8)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,9)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,10)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,11)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,12)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,13)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,14)/I%,0))&"</td><td>"&STR$(ROUND(BEW.ART.JM(1,15)/I%,0))&"</td><td><i>"&STR$(ROUND(BEW.ART.JM(1,2)/I%,0))&"</i></td><td><strong>"&BEW.JD$&"</strong></td></tr>"
+002480                          IFEND 
+002490                     VGL.ED.ZEILE$ = "<tr "&STIL$&"><td><i>im Vergleich</i></td><td>"&STR$(ROUND(ABEW.ART.JM(1,4)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,5)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,6)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,7)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,8)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,9)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,10)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,11)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,12)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,13)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,14)/J%,0))&"</td><td>"&STR$(ROUND(ABEW.ART.JM(1,15)/J%,0))&"</td><td><i>"&STR$(ROUND(ABEW.ART.JM(1,2)/J%,0))&"</i></td><td><strong>"&ABEW.JD$&"</strong></td></tr>"
+002500                     CALL CGI.TEMPLATE.VAR("vgl.agpunkt"&STR$(X%),VGL.AG.ZEILE$)
+002510                     CALL CGI.TEMPLATE.VAR("vgl.edpunkt"&STR$(X%),VGL.ED.ZEILE$)
+002520                     NEXT X%
+002530                FOR X% = 1 TO 12
+002540                     BMON.AUS$(X%) = STR$(BEW.ART.JM(1,X%+3))
+002550                     BMON.VGL$(X%) = STR$(ABEW.ART.JM(1,X%+3)/J%)
+002560                     DIV% = LEN(BMON.AUS$(X%))
+002570                     SELECT DIV%
+002580                          CASE 1
+002590                               DIV% = 1
+002600                          CASE 2
+002610                               DIV% = 10
+002620                          CASE 3
+002630                               DIV% = 100
+002640                          CASE 4
+002650                               DIV% = 1000
+002651                          CASE 5
+002652                               DIV% = 10000
+002660                          OTHERWISE 
+002670                               MSG$(1) = "Mengen zu gro&szlig; f&uuml;r eine Berechnung"
+002680                               GOTO FEHLER
+002690                          CEND 
+002700                     BMON.AUS$(X%) = STR$((VAL(BMON.AUS$(X%))/DIV%*6))
+002710                     BMON.VGL$(X%) = STR$((VAL(BMON.VGL$(X%))/DIV%*6))
+002720                     IF VAL(BMON.VGL$(X%))>0 AND VAL(BMON.AUS$(X%))>0
+002721 !PRINT BMON.AUS$(X%) \ PRINT BMON.VGL$(X%)
+002730                          BMON.PRZ$(X%) = STR$(ROUND((VAL(BMON.AUS$(X%))/VAL(BMON.VGL$(X%)))*100,0))
+002740                          BMON.PRZ$(X%) = BMON.PRZ$(X%)&"&#37;"
+002750                          IFEND 
+002760                     BMON.ZEILE$ = "<img src=""/ops/pics/balken_blau.png"" align=""bottom"" width=""10"" height="" "&BMON.AUS$(X%)&""">&nbsp;<img src=""/ops/pics/balken_gruen.png"" align=""bottom"" width=""10"" height="""&BMON.VGL$(X%)&"""><br/><font face=""verdana"" size=""1"">"&BMON.PRZ$(X%)&"</font>"
+002770                     CALL CGI.TEMPLATE.VAR("vgl.mon"&STR$(X%),BMON.ZEILE$)
+002780                     NEXT X%
+002781 !STOP
+002790                CALL CGI.TEMPLATE.VAR("ausgang.anzahl",STR$(I%))
+002800                CALL CGI.TEMPLATE.VAR("vergleich.anzahl",STR$(J%))
+002810                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+002820                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+002830                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+002840                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+002850                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+002860                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+002870                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+002880                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/art_ve_aus.tpl")
+002890                GOTO ENDE
+002900           OTHERWISE 
+002910                PRINT "Hacking attempt!"
+002920                STOP 
+002930           CEND 
+002940 ! ********************* HAUPTPROGRAMM ENDE ***********************
+002950 FEHLER:
+002960      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+002970      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+002980      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+002990      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+003000 ENDE:
+003010      END 
+003020 REM ------------------------------------------------
+003030 ERROR.ROUT:
+003040      RC$ = FN.WFKIFEHL$("art_ve_aus",ERR,ERL,CRC$,FL%)
+003050 
+003060 REM *******************************************************
+003070 L11: ! Bewohnerstamm lesen
+003080      FL% = 11 \ READ #11,KY11$:BAS1%,BAS2%,BZNR%,BKNR,BASNR,BASBE$ \ UNLOCK #11 \ CLEAR FL%
+003090      RETURN 
+003100 REM *******************************************************
+003110 L12: ! Artikelstamm lesen
+003120      FL% = 12 \ READ #12,KY12$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$ \ UNLOCK #12 \ CLEAR FL%
+003130      RETURN 
+003140 REM *******************************************************
+003150 L13: ! Bewohnerartikelumsatz /-mengen BEUMnnnn.REI
+003160      FL% = 13 \ READ #13,KY13$:AKY13$,BM1,BM2,BM3,BM4,BM5,BM6,BM7,BM8,BM9,BM10,BM11,BM12,BM13,BM14,BM15,BM16,BM17,BM18,BM19,BM20,BM21,BM22,BM23,BM24,BM25,BM26,BM27,BM28,BM29,BM30,XX$,XX$ \ UNLOCK #14 \ CLEAR FL%
+003170      RETURN 
+003180 REM *******************************************************
+003190 L13.1: ! Bewohnerartikelumsatz /-mengen BEUMnnnn.REI
+003200      FL% = 13 \ READNEXT #13,KY13$:AKY13$,BM1,BM2,BM3,BM4,BM5,BM6,BM7,BM8,BM9,BM10,BM11,BM12,BM13,BM14,BM15,BM16,BM17,BM18,BM19,BM20,BM21,BM22,BM23,BM24,BM25,BM26,BM27,BM28,BM29,BM30,XX$,XX$ \ UNLOCK #14 \ CLEAR FL%
+003210      RETURN 

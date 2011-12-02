@@ -1,0 +1,71 @@
+000010 REM KKSDOPA- KISS Kommunikations Serverdienst OPA
+000020 REM 13.05.2008 - Schmidt (Programmerstellung)
+000030 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000040 
+000050      INCLUDE "BSERVER" ! TCP Tools
+000060      OPTION PROMPT "", COMMA, CASE "U", LOCK 1
+000070      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000080 
+000090      PRINT AT$(1,1);CRT$("EOS");
+000100 
+000110      PORT$ = "2011" ! TCP Port
+000120      TIME.OUT.SEC% = 1 ! Timeout NIC Treiber polling
+000130      TIME.OUT.MSEC% = 0 ! Timeout in Millisekunden
+000140 
+000150      PRINT AT$(1,1);"KSSD - KISS Kommunikations Serverdienst Altenheim";
+000160      WHILE NOT DONE%
+000170           CALL BTCP.SERVER(PORT$,TIME.OUT.SEC%,TIME.OUT.MSEC%)
+000180           AKTION$ = "Poll auf NIC" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS.ZEILE
+000190           IF CALL.RETURN.VALUE=BTCPIP.CLIENT.WAITING%
+000200                AKTION$ = "Client wartet" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000210                CALL BTCP.GETCLI(ADDROF(SOCKET%),ADDROF(CLIENT$))
+000220                AKTION$ = "Client Infos abrufen" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000230                PRINT AT$(1,3);"Protokoll der letzten Verbindung";
+000240                AKTION$ = "beginne Compress" \ RC% = CSI.RETURN.CODE \ GOSUB RC.STATUS
+000250                SYSTEM "compress bewoexp.cmp /wwwroot/export/bewoexp.opa (not"
+000260                AKTION$ = "beende Compress" \ RC% = CSI.RETURN.CODE \ GOSUB RC.STATUS
+000270                SYSTEM "f bewoexp.cmp (check > check.sum:m"
+000280                OPEN #1:"check.sum:m", INPUT SEQUENTIAL 
+000290                WHILE NOT EOF(1)
+000300                     LINPUT #1:ZEILE$
+000310                     IF SCH(1,ZEILE$,"0x")>1
+000320                          VON% = SCH(1,ZEILE$,"0x")
+000330                          SUM$ = ZEILE$[VON%:LEN(ZEILE$)]
+000340                          IFEND 
+000350                     WEND 
+000360                CLOSE #1
+000370                SYSTEM "er check.sum:m (not noq"
+000380 
+000390                CALL BTCP.SEND(SOCKET%,SUM$,6)
+000400                AKTION$ = "Sende -chksum-" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000410 
+000420                CALL BTCP.SFILE(SOCKET%,"bewoexp.cmp")
+000430                AKTION$ = "Daten senden" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000440 !               CALL BTCP.TIMEOUT(SOCKET%,5,5)
+000450 
+000460                RC% = CALL.RETURN.VALUE
+000470                IF RC%=BTCPIP.OK%
+000480                     AKTION$ = "Datei leeren" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000490                     SYSTEM "cr /wwwroot/export/bewoexp.opa (clear"
+000500                     SYSTEM "er bewoexp.cmp (not noq"
+000510                     IFEND 
+000520 
+000530                CALL BTCP.GETCLI(ADDROF(SOCKET%),ADDROF(CLIENT$))
+000540                AKTION$ = "RC=13? TCP/IP FINISH" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000550                CALL BTCP.DOWN(SOCKET%) ! Socket freigeben
+000560                AKTION$ = "Socket freigeben" \ RC% = CALL.RETURN.VALUE \ GOSUB RC.STATUS
+000570                CLEAR RC%,SOCKET%
+000580                IFEND 
+000590           GET EINGABE$
+000600           IF EINGABE$<>"" THEN DONE% = -1
+000610           WEND 
+000620      PRINT AT$(1,23);CRT$("EOS");"Dienst beendet....";
+000630      END 
+000640 RC.STATUS:
+000650      PRINT AT$(1,4);CRT$("IL");"Aktion: "&RPAD$(AKTION$,20)&" - "&" RC:"&FORMAT$(RC%,"##")&" - "&TIME$(0);
+000660      PRINT AT$(1,19);CRT$("EOL");
+000670      PRINT AT$(1,23);CRT$("EOS");
+000680 RC.STATUS.ZEILE:
+000690      PRINT AT$(1,22);CRT$("RVON");"RC-Status Code:"&CRT$("RVOFF");STR$(RC%)&" - "&TIME$(0)
+000700      PRINT AT$(1,23);CRT$("RVON");"Aktion        :"&CRT$("RVOFF")&RPAD$(AKTION$,20)&" - "&TIME$(0)
+000710      RETURN 

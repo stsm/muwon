@@ -1,0 +1,89 @@
+000010 REM Programm zur Anzeige der settings.tpl Datei
+000020 REM 02.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFZUGANG.INC" ! Zugangskontrolle
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehanldung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID übernehmen
+000180      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000190 REM *******************************************************
+000200 REM ************ Session prüfen ***************
+000210      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000220      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000230 REM *******************************************
+000240 REM ************ Zugang prüfen ***************
+000250      RC$ = FN.WFZUGANG$("einst",FKDNR$)
+000260 REM *******************************************
+000270      FL% = 10 \ FL$ = "SETTING.OPBK" \ OPEN #10:"/wwwroot/opbk/SETTING.OPBK", UPDATE INDEXED \ CLEAR FL%
+000280      SELECT AKTION$
+000290           CASE "Start"
+000300                KY10$ = "1"&FKDNR$ \ GOSUB L10 \ UNLOCK #10
+000310                EMAIL.ADRESSE$ = FN.FORM.INPUT$("email",40,40,EMAIL$)
+000320                SELECT.EMAIL$ = FN.FORM.SELECT$("protokoll",1)
+000330                SELECT VAL(PROTOKOLL$) ! Protokoll 1=ja 0=nein
+000340                     CASE 1
+000350                          SELECT.EMAIL.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",0,"nein")
+000360                          SELECT.EMAIL.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",1,"ja")
+000370                     OTHERWISE 
+000380                          SELECT.EMAIL.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",1,"nein")
+000390                          SELECT.EMAIL.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",0,"ja")
+000400                     CEND 
+000410                SELECT.ENDE$ = "</select>"
+000420                EMAIL.TXT$ = "<font face=""verdana"" size=""2"">e-Mail Protokoll aktivieren?</font>"
+000430                SPEICHERN.BUTTON$ = "<input type=""submit"" name=""aktion"" value=""Speichern"" />"
+000440                CALL CGI.TEMPLATE.VAR("speichern.button",SPEICHERN.BUTTON$)
+000450                CALL CGI.TEMPLATE.VAR("email.txt",EMAIL.TXT$)
+000460                CALL CGI.TEMPLATE.VAR("select.ende",SELECT.ENDE$)
+000470                CALL CGI.TEMPLATE.VAR("select.email",SELECT.EMAIL$)
+000480                CALL CGI.TEMPLATE.VAR("email.adresse",EMAIL.ADRESSE$)
+000490                FOR I% = 1 TO 2
+000500                     CALL CGI.TEMPLATE.VAR("select.email.inhalt"&STR$(I%),SELECT.EMAIL.INHALT$(I%))
+000510                     NEXT I%
+000520           CASE "Speichern"
+000530                CALL CGI.GET("email",ADDROF(EMAIL$))
+000540                CALL CGI.GET("protokoll",ADDROF(PROTOKOLL$))
+000550                IF TRIM$(EMAIL$)="" AND VAL(PROTOKOLL$)>0
+000560                     SET.MSG$ = "Sie haben keine e-Mailadresse angegeben!"
+000570                     GOTO GENERIEREN
+000580                     IFEND 
+000590                KY10$ = "1"&FKDNR$
+000600                GOSUB S10 ! Einstellungen speichern
+000610                SET.MSG$ = "Die &Auml;nderungen wurden erfolgreich gespeichert!"
+000620           OTHERWISE 
+000630                PRINT "Die Ausnahme ""OTHERWISE"" ist aufgetreten!" \ STOP 
+000640           CEND 
+000650 GENERIEREN:
+000660      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000670      CALL CGI.TEMPLATE.VAR("sid",SID$)
+000680      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000690      CALL CGI.TEMPLATE.VAR("set.msg",SET.MSG$)
+000700      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/settings.tpl")
+000710 ENDE:
+000720      CLOSE #10
+000730      END \ QUIT 
+000740 REM ------------------------------------------------
+000750 ERROR.ROUT:
+000760      IF ERR=30 AND FL%=10 THEN SYSTEM "cr /wwwroot/opbk/SETTING.OPBK (i file 500 keyl 10 recl 300" \ RESUME 
+000770      RC$ = FN.WFKIFEHL$("settings",ERR,ERL,CRC$,FL%)
+000780 REM ------------------------------------------------
+000790 L10: ! Einstellungen lesen
+000800      READ #10,KY10$:EMAIL$,XX$,XX$,XX$,PROTOKOLL$,XX%,XX%,XX%
+000810      RETURN 
+000820 REM ------------------------------------------------
+000830 S10: ! Einstellungen schreiben
+000840      WRITE #10,KY10$:EMAIL$,XX$,XX$,XX$,VAL(PROTOKOLL$),XX%,XX%,XX%,DATE$(0),TIME$(0)
+000850      RETURN 
+000860 REM ------------------------------------------------
+000870 LOE10: ! Einstellungen löschen
+000880      DELETE #10,KY10$
+000890      RETURN 

@@ -1,0 +1,48 @@
+000010 REM wfallgem.inc
+000020 
+000030 REM Include für allgemeine subroutinen
+000040 REM 20.05.2009 - Schmidt (Programmerstellung)
+000050 
+000060 
+000070 REM *** Theos HTTP Server Caracter Set Umlautfehler ***
+000080 REM *** hier werden die falschen CHR$ Sets in die richtigen gewnadelt
+000090 
+000100 SUB HTTP.CHR.WORKAROUND(WERT$)
+000110 
+000120      LOCAL UML$(7),HTML$(7),CU$,SUCH%,UML%,POS%
+000130      SHARED KORR.STRING$
+000140 
+000150 ! Ä,ä - Ö,ä - Ü,ü - ß
+000160      UML$(1) = CHR$(196) \ UML$(2) = CHR$(228) \ UML$(3) = CHR$(214) \ UML$(4) = CHR$(246) \ UML$(5) = CHR$(220) \ UML$(6) = CHR$(252) \ UML$(7) = CHR$(223)
+000170      HTML$(1) = CHR$(192) \ HTML$(2) = CHR$(193) \ HTML$(3) = CHR$(206) \ HTML$(4) = CHR$(207) \ HTML$(5) = CHR$(211) \ HTML$(6) = CHR$(212) \ HTML$(7) = CHR$(224)
+000180 
+000190      FOR SUCH% = 1 TO 7
+000200           CU$ = UML$(SUCH%)
+000210           POS% = SCH(1,WERT$,CU$)
+000220           IF POS%>0
+000230                WERT$ = WERT$[1:POS%-1]&HTML$(SUCH%)&WERT$[POS%+1:LEN(WERT$)]
+000240                IFEND 
+000250           NEXT SUCH%
+000260      KORR.STRING$ = TRIM$(WERT$)
+000270      END SUB 
+000280 REM *** Ende ***
+000290 
+000300 DEF FN.UMLAUTE.ZU.THEOS$(STRING$)
+000310 
+000320      DIM UML$(7),THEOS$(7)
+000321      LOCAL CU$,SUCH%,UML%,POS%
+000330 
+000340 ! Ä,ä - Ö,ä - Ü,ü - ß
+000350      UML$(1) = CHR$(196) \ UML$(2) = CHR$(228) \ UML$(3) = CHR$(214) \ UML$(4) = CHR$(246) \ UML$(5) = CHR$(220) \ UML$(6) = CHR$(252) \ UML$(7) = CHR$(223)
+000360      THEOS$(1) = THEOS$(192) \ THEOS$(2) = CHR$(193) \ THEOS$(3) = THEOS$(206) \ THEOS$(4) = CHR$(207) \ THEOS$(5) = CHR$(211) \ THEOS$(6) = CHR$(212) \ THEOS$(7) = CHR$(224)
+000361 PRINT "361" \ STOP 
+000370 
+000380      FOR SUCH% = 1 TO 7
+000390           CU$ = UML$(SUCH%)
+000400           POS% = SCH(1,STRING$,CU$)
+000410           IF POS%>0
+000420                STRING$ = OVR$(STRING$,POS%,1,THEOS$(SUCH%))
+000430                IFEND 
+000440           NEXT SUCH%
+000450      FN.UMLAUTE.ZU.THEOS$ = STRING$
+000460      FNEND 

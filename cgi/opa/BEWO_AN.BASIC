@@ -1,0 +1,198 @@
+000010 REM Programm zur Übernahme der Bewohnerdaten
+000020 REM 13.12.2007 - Schmidt (Programmerstellung)
+000030 REM 05.02.2008 - Schmidt (Sessionmanagement eingbaut)
+000040 REM 16.04.2008 - Schmidt (Info+Abrechnungsauswahl eingebaut)
+000050 REM 25.04.2008 - Schmidt (eMail Protokoll)
+000060 REM 25.05.2008 - Schmidt (Fehlerbehandlung)
+000070 REM 30.05.2008 - Schmidt (statt SENDMAIL  mit CALL EMAIIL)
+000080 REM 04.06.2008 - Schmidt (ggf. BEWANMERKUNG$ vorbelegen)
+000090 REM 04.06.2008 - Schmidt (Umbruchfehler bei Mailprotokoll behoben)
+000100 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000110 REM 24.11.2008 - Schmidt (eMailprotokoll für Altenheim)
+000120 REM 19.12.2008 - Schmidt (GET Variable sperrerei geändert)
+000130 REM 20.05.2009 - Schmidt (Handling für Umlaute in WFALLGEM.INC)
+000140 REM 02.06.2009 - Schmidt (Mail Passwort auf falscher Varibale)
+000150 
+000160      INCLUDE "CGI"
+000170      INCLUDE "EMAIL" ! Email Toolkit
+000180      INCLUDE "WFALLGEM.INC" ! allgemeine Routinen
+000190      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000200      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000210      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000220 
+000230      OPTION VERSION 2.0.04,"Mitttermeier & Ungelenk GmbH"
+000240 
+000250      ON ERROR GOTO ERROR.ROUT
+000260 
+000270 REM *******************************************************
+000280      CALL CGI.INIT
+000290      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000300      CALL CGI.GET("sid",ADDROF(SID$))
+000310      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000320 REM *******************************************************
+000330      CALL CGI.GET("nname",ADDROF(BEWNAME$))
+000340      CALL CGI.GET("vname",ADDROF(BEWVORNAME$))
+000350      CALL CGI.GET("zimmer",ADDROF(BEWZIMMER$))
+000360      CALL CGI.GET("station",ADDROF(BEWSTATION$))
+000370      CALL CGI.GET("anmeldung",ADDROF(BEWANMELD$))
+000380      CALL CGI.GET("opas",ADDROF(BEWOPAS$))
+000390      CALL CGI.GET("zahler",ADDROF(BEWZAHLART$))
+000400      CALL CGI.GET("sperrerei",ADDROF(BEWSPREI$))
+000410      CALL CGI.GET("abrechnung",ADDROF(BEWABRECH$))
+000420      CALL CGI.GET("name1",ADDROF(BEWZAHLER1$))
+000430      CALL CGI.GET("name2",ADDROF(BEWZAHLER2$))
+000440      CALL CGI.GET("name3",ADDROF(BEWZAHLER3$))
+000450      CALL CGI.GET("str",ADDROF(BEWSTRASSE$))
+000460      CALL CGI.GET("plz",ADDROF(BEWPLZ$))
+000470      CALL CGI.GET("ort",ADDROF(BEWORT$))
+000480      CALL CGI.GET("bank",ADDROF(BEWBANK$))
+000490      CALL CGI.GET("kto",ADDROF(BEWKTO$))
+000500      CALL CGI.GET("blz",ADDROF(BEWBLZ$))
+000510      CALL CGI.GET("info",ADDROF(BEWANMERKUNG$))
+000520 
+000530 
+000540      BEWNAME$ = FN.UMLAUTE.ZU.THEOS$(BEWNAME$)
+000550      BEWVORNAME$ = FN.UMLAUTE.ZU.THEOS$(BEWVORNAME$)
+000560      BEWANMERKUNG$ = FN.UMLAUTE.ZU.THEOS$(BEWANMERKUNG$)
+000570 
+000580 REM *******************************************************
+000590 REM ************ Session prüfen ***************
+000600      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000610      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000620 REM *******************************************
+000630      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite </font></a>"
+000640      NAVIGATION2$ = "<a href=""javascript:document.bewo_idx.submit();""><img src=""../../global/pics/user.png"" border=""0""><font face=""verdana"" size=""2"">zur&uuml;ck zu Bewohner </font></a>"
+000650      NAVIGATION.FORM$ = "<form action=""/cgi.opa/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000660      NAVIGATION.FORM2$ = "<form action=""/cgi.opa/bewo_idx"" name=""bewo_idx"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000670      SELECT AKTION$
+000680           CASE "Absenden"
+000690                FL% = 3 \ OPEN #3:"/WWWROOT/OPA/PARAMET.OPA", UPDATE INDEXED 
+000700                FL% = 4 \ OPEN #4:"/WWWROOT/EXPORT/BEWOEXP.OPA", OUTPUT INDEXED ! Exportdatei für KKSD & KKCL
+000710                FL% = 5 \ OPEN #5:"/WWWROOT/OPA/STAMMDA.OPA", UPDATE INDEXED 
+000720                KY3$ = "1"&FKDNR$
+000730                KY5$ = "1BAN"&FKDNR$
+000740                GOSUB L3
+000750                GOSUB L5
+000760                IF BANMERK>=900000.0 THEN BANMERK = 0
+000770                BANMERK = BANMERK+1
+000780                KY4$ = "1BAN"&FKDNR$&FORMAT$(BANMERK,"999999")
+000790                IF VAL(BEWZAHLART$)=0 ! keine Überweisung - vorsorg. lö
+000800                     CLEAR BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$
+000810                     IFEND 
+000820                IF TRIM$(BEWANMERKUNG$)="" THEN BEWANMERKUNG$ = "keine Anmerkung"
+000830                WRITE #4,KY4$:FKDNR$,BEWNAME$,BEWVORNAME$,BEWZIMMER$,BEWSTATION$,BEWANMELD$[1:10],BEWOPAS$,VAL(BEWZAHLART$),VAL(BEWSPREI$),VAL(BEWABRECH$),BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$,BEWANMERKUNG$,RES$,RES$,RES$,RES$,RES%,RES%,RES,RES,DATE$(0),TIME$(0)
+000840                KY5$ = "1BAN"&FKDNR$
+000850                GOSUB S5 !
+000860                CLOSE #3 \ CLOSE #4 \ CLOSE #5
+000870                FL% = 11 \ OPEN #11:"/FISTAM.REI", INPUT INDEXED 
+000880                KY11$ = "101"
+000890                FL% = 11 \ READ #11,KY11$:ZNR%,ZA1$,ZA2$,ZLA$,ZST$,ZPL,ZOR$,ZTE$,ZTX$,ZTXX$,TEMP$,TEMP$,ZF100$,ZF101$,ZF102$,ZF103$,ZF104$,ZF105$ \ UNLOCK #11 \ CLEAR FL%
+000900                KY11$ = "1KISS"
+000910                FL% = 11 \ READ #11,"1KISS":MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$ \ UNLOCK #98 \ CLEAR FL%
+000920                CLOSE #11
+000930                IF EMAIL%=1 AND ZF105$<>"" ! Email Protokoll an Wäscherei
+000940                     FL% = 10 \ OPEN #10:"/KUSTWA.REI", INPUT INDEXED 
+000950                     FL% = 12 \ OPEN #12:"/WWWROOT/OPA/SETTING.OPA", INPUT INDEXED 
+000960                     KY10$ = "1"&FKDNR$
+000970                     KY12$ = "1"&FKDNR$
+000980                     GOSUB L10 ! Kundenstamm Wäscherei lesen
+000990                     GOSUB L12 ! Will das Altenheim ein eMail - Protokoll?
+001000                     CLOSE #10 \ CLOSE #12
+001010                     FL% = 2 \ OPEN #2:SID$&".email:m", OUTPUT SEQUENTIAL 
+001020                     PRINT #2:"To: ";TRIM$(LCASE$(ZF105$))
+001030                     IF VAL(PROTOKOLL$)=1 ! Altenheimprotokoll
+001040                          PRINT #2:"Cc: ";TRIM$(LCASE$(EMAIL$))
+001050                          IFEND 
+001060                     PRINT #2:"From: ";TRIM$(LCASE$(ZF105$))
+001070                     PRINT #2:"Subject: neuer Bewohner angelegt "&DATE$(0)&"-"&TIME$(0)
+001080                     PRINT #2:""
+001090                     PRINT #2:"Kundennummer "&FKDNR$&" ("&TRIM$(KA1$)&","&TRIM$(KA2$)&") hat einen neuen Bewohner angelegt"
+001100                     PRINT #2
+001110                     MAIL.ZEILE$ = "Nachname......: "
+001120                     PRINT #2:MAIL.ZEILE$&BEWNAME$&CHR$(10);
+001130                     MAIL.ZEILE$ = "Vorname.......: "
+001140                     PRINT #2:MAIL.ZEILE$&BEWVORNAME$&CHR$(10);
+001150                     MAIL.ZEILE$ = "Zimmer........: "
+001160                     PRINT #2:MAIL.ZEILE$&BEWZIMMER$&CHR$(10);
+001170                     MAIL.ZEILE$ = "Station.......: "
+001180                     PRINT #2:MAIL.ZEILE$&BEWSTATION$&CHR$(10);
+001190                     MAIL.ZEILE$ = "OPAS - Nummer.: "
+001200                     PRINT #2:MAIL.ZEILE$&BEWOPAS$&CHR$(10);
+001210                     MAIL.ZEILE$ = "Abrg.-ausw....: "
+001220                     PRINT #2:MAIL.ZEILE$&BEWABRECH$&CHR$(10);
+001230                     MAIL.ZEILE$ = "Sperre Rein...: "
+001240                     PRINT #2:MAIL.ZEILE$&BEWSPREI$&CHR$(10);
+001250                     IF BEWZAHLER1$<>"" ! Zahlerinfos
+001260                          MAIL.ZEILE$ = "Zahlername 1..: "
+001270                          PRINT #2:MAIL.ZEILE$&BEWZAHLER1$&CHR$(10);
+001280                          MAIL.ZEILE$ = "Zahlername 2..: "
+001290                          PRINT #2:MAIL.ZEILE$&BEWZAHLER2$&CHR$(10);
+001300                          MAIL.ZEILE$ = "Zahlername 3..: "
+001310                          PRINT #2:MAIL.ZEILE$&BEWZAHLER3$&CHR$(10);
+001320                          MAIL.ZEILE$ = "Straße........: "
+001330                          PRINT #2:MAIL.ZEILE$&BEWSTRASSE$&CHR$(10);
+001340                          MAIL.ZEILE$ = "PLZ / Ort.....: "
+001350                          PRINT #2:MAIL.ZEILE$&BEWPLZ$&" / "&BEWORT$&CHR$(10);
+001360                          MAIL.ZEILE$ = "Bank..........: "
+001370                          PRINT #2:MAIL.ZEILE$&BEWBANK$&CHR$(10);
+001380                          MAIL.ZEILE$ = "Konto.-Nr.....: "
+001390                          PRINT #2:MAIL.ZEILE$&BEWKTO$&CHR$(10);
+001400                          MAIL.ZEILE$ = "Bankleitzahl..: "
+001410                          PRINT #2:MAIL.ZEILE$&BEWBLZ$&CHR$(10);
+001420                          IFEND 
+001430                     MAIL.ZEILE$ = "Anmerkung.....: "
+001440                     PRINT #2:MAIL.ZEILE$&BEWANMERKUNG$&CHR$(10);
+001450                     PRINT #2
+001460                     PRINT #2:DATE$(0)&" - "&TIME$(0)
+001470                     PRINT #2
+001480                     CLOSE #2 \ CLEAR FL%
+001490                     CALL EMAIL.PROFILEEX("",TRIM$(MIP$),TRIM$(MUS$),TRIM$(MPAS$),"","","","",STR$(VAL(MPORT$)),"")
+001500                     CALL EMAIL.SEND(SID$&".email:m",0)
+001510                     RC = CALL.RETURN.VALUE
+001520                     IF CALL.RETURN.VALUE>0
+001530                          CALL EMAIL.ERROR.MSG(RC,ADDROF(CRC$))
+001540                          GOTO ERROR.ROUT
+001550                          IFEND 
+001560                     SYSTEM "er "&SID$&".email:m (NOQ"
+001570                     IFEND 
+001580                MSG$(1) = "Daten wurden erfolgreich gespeichert!"
+001590                MSG$(2) = "<br />Es wird ein Mitarbeiter der W&auml;scherei benachrichtigt um die Daten zu &uuml;berpr&uuml;fen."
+001600           OTHERWISE 
+001610                PRINT "Hacking attempt!" \ STOP 
+001620           CEND 
+001630      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001640      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001650      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001660      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001670      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+001680      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+001690      CALL CGI.TEMPLATE.VAR("navigation2",NAVIGATION2$)
+001700      CALL CGI.TEMPLATE.VAR("navigation.form2",NAVIGATION.FORM2$)
+001710      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+001720      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/hinweis.tpl")
+001730 ENDE:
+001740      END \ QUIT 
+001750 REM ------------------------------------------------
+001760 ERROR.ROUT:
+001770      RC$ = FN.WFKIFEHL$("bewo_an",ERR,ERL,CRC$,FL%)
+001780 
+001790 REM --------------------------------------------------------
+001800 L3: ! OPA Parameter lesen
+001810      FL% = 3 \ READ #3,KY3$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA% \ UNLOCK #3 \ CLEAR FL%
+001820      RETURN 
+001830 REM --------------------------------------------------------
+001840 L5: ! OPA Firemstamm lesen
+001850      FL% = 5 \ READ #5,KY5$:XX$,BANMERK \ CLEAR FL%
+001860      RETURN 
+001870 REM --------------------------------------------------------
+001880 S5: ! OPA Firmenstamm schreiben
+001890      FL% = 5 \ WRITE #5,KY5$:FKDNR$,BANMERK,DATE$(0),TIME$(0) \ CLEAR FL%
+001900      RETURN 
+001910 REM --------------------------------------------------------
+001920 L10: ! Kundenstamm lesen
+001930      FL% = 10 \ READ #10,KY10$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG$,KDB,K1%,K2%,KRB$,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX1$,XX2$,FK1% \ UNLOCK #10 \ CLEAR FL%
+001940      RETURN 
+001950 REM --------------------------------------------------------
+001960 L12: ! persönliche Einstellungen Altenheim lesen
+001970      READ #12,KY12$:EMAIL$,XX$,XX$,XX$,PROTOKOLL$,XX%,XX%,XX%
+001980      RETURN 

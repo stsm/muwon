@@ -1,0 +1,47 @@
+000010 REM Programm zur Anzeige der heim_idx.tpl Datei
+000020 REM 05.01.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! CGI Schnittstelle
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000100 
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID übernehmen
+000170      CALL CGI.GET("mita",ADDROF(MITA$)) ! Session-ID übernehmen
+000180      CALL CGI.GET("nummer",ADDROF(NUMMER$)) ! Session-ID übernehmen
+000190      IF TRIM$(KDNR$)=""
+000200           KDNR$ = NUMMER$
+000210           IFEND 
+000220 REM *******************************************************
+000230 REM ************ Session prüfen ***************
+000240      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000250 REM *******************************************
+000260      OPEN #11:"/KUSTWA.REI", INPUT INDEXED 
+000270      KY11$ = "1"&KDNR$
+000280      GOSUB L11 \ UNLOCK #11 \ CLOSE #11 ! Kunden lesen
+000290      HEIM$ = TRIM$(KA1$)&"; "&TRIM$(KA2$)
+000300      AKT.JAHR$ = DATE$(0)[7:10]
+000310 
+000320      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000330      CALL CGI.TEMPLATE.VAR("sid",SID$)
+000340      CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000350      CALL CGI.TEMPLATE.VAR("heim",HEIM$)
+000360      CALL CGI.TEMPLATE.VAR("akt.jahr",AKT.JAHR$)
+000370      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000380      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/heim_idx.tpl")
+000390 ENDE:
+000400      END 
+000410 REM ------------------------------------------------
+000420 L11:      ! Kundenstamm lesen
+000430      READ #11,KY11$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX$,XX$,FK1%
+000440      RETURN 
+000450 REM ------------------------------------------------
+000460 ERROR.ROUT:
+000470      RC$ = FN.WFKIFEHL$("heim_idx",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,30 @@
+000010 REM Programm um aus allen Teilen zur Startseite zurück
+000020 REM 02.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFKIFEHL.INC" ! Feherlbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      ON ERROR GOTO ERROR.ROUT
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Passwort übernehmen
+000170 REM *******************************************************
+000180 REM ************ Session prüfen ***************
+000190      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000200      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000210 REM *******************************************
+000220 
+000230      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000240      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000250      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/index.tpl")
+000260 ENDE:
+000270      END \ QUIT 
+000280 REM ------------------------------------------------
+000290 ERROR.ROUT:
+000300      RC$ = FN.WFKIFEHL$("home",ERR,ERL,CRC$,FL%)

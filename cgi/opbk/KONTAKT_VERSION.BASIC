@@ -1,0 +1,43 @@
+000010 REM Programm zur Anzeige der kontakt_version.tpl Datei
+000020 REM 02.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Common Gateway Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000100 
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000170 REM *******************************************************
+000180 REM ************ Session prüfen ***************
+000190      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000200      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000210 REM *******************************************
+000220 
+000230      FONTA$ = "<font face=""verdana"" size=""2"">"
+000240      FONTE$ = "</font>"
+000250      SYSTEM "f /wwwroot/cgi/opbk/*.command (ver > version.temp:m"
+000260      FL% = 10 \ OPEN #10:"version.temp:m", INPUT SEQUENTIAL 
+000270      WHILE NOT EOF(10)
+000280           LINPUT #10:ZEILE$
+000290           I% = I%+1
+000300           TRENNER% = SCH(1,ZEILE$,".")-1
+000310           CALL CGI.TEMPLATE.VAR("version.inhalt"&STR$(I%),"<tr><td>"&FONTA$&ZEILE$[1:TRENNER%]&FONTE$&"</td><td>"&FONTA$&ZEILE$[31:40]&FONTE$&"</td><td align=""center"">"&FONTA$&ZEILE$[50:55]&FONTE$&"</td></tr>")
+000320           WEND 
+000330      SYSTEM "er version.temp:m (not noq"
+000340      CALL CGI.TEMPLATE.VAR("theos",SYS.ENV$(10))
+000350      CALL CGI.TEMPLATE.VAR("tsn",SYS.ENV$(11))
+000360      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000370      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000380      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/kontakt_version.tpl")
+000390 ENDE:
+000400      END \ QUIT 
+000410 REM ------------------------------------------------
+000420 ERROR.ROUT:
+000430      RC$ = FN.WFKIFEHL$("kontakt_version",ERR,ERL,CRC$,FL%)

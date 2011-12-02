@@ -1,0 +1,90 @@
+start:
+&control off
+&crt clear
+&menu
+Auswahl
+>> Alle Ordner + Dateien anlegen <<
+>> OPA  Ordner + Dateien anlegen <<
+>> OPS  Ordner + Dateien anlegen <<
+>> OPBK Ordner + Dateien anlegen <<
+>>              ENDE             <<
+&end
+&if &menuix=1
+; Unterordner anlegen
+ md /wwwroot/cgi
+ md /wwwroot/cgi/opa
+ md /wwwroot/cgi/ops
+ md /wwwroot/cgi/opbk
+ md /wwwroot/export
+ md /wwwroot/global
+ md /wwwroot/opa
+ md /wwwroot/ops
+ md /wwwroot/opbk
+ md /wwwroot/temp
+ &call daten.root
+ &call daten.opa
+ &call daten.ops
+ &call daten.opbk
+
+&elseif &menuix=2
+ md /wwwroot/cgi
+ md /wwwroot/cgi/opa
+ md /wwwroot/temp
+ md /wwwroot/global
+ md /wwwroot/opa
+ md /wwwroot/export
+ &call daten.root
+ &call daten.opa
+
+&elseif &menuix=3
+ md /wwwroot/cgi
+ md /wwwroot/cgi/ops
+ md /wwwroot/temp
+ md /wwwroot/global
+ md /wwwroot/ops
+ &call daten.root
+ &call daten.ops
+
+&elseif &menuix=4
+ md /wwwroot/cgi
+ md /wwwroot/cgi/opbk
+ md /wwwroot/temp
+ md /wwwroot/export
+ md /wwwroot/global
+ md /wwwroot/opbk
+ &call daten.root
+ &call daten.opbk
+
+&else
+ &quit
+&endif
+ &quit
+ ;-------------------------------------------------------------
+ daten.root:  cr /wwwroot/SESSION.ALLE (i file 1000 recl 200 keyl 50
+ &return
+
+daten.opa:
+cr /wwwroot/opa/ANABMLD.OPA (i file 500 recl 350 keyl 20
+cr /wwwroot/opa/FEHLLOG.OPA (i file 1000 recl 150 keyl 20
+cr /wwwroot/opa/PARAMET.OPA (i file 500 recl 500 keyl 10
+cr /wwwroot/opa/PASSWRD.OPA (i file 500 recl 100 keyl 10
+cr /wwwroot/opa/STAMMDA.OPA (i file 500 recl 100 keyl 20
+cr /wwwroot/opa/ZUGRIFF.OPA (i file 100000 recl 100 keyl 20
+&return
+
+daten.ops:
+cr /wwwroot/ops/FEHLLOG.OPS (i file 1000 recl 150 keyl 20
+cr /wwwroot/ops/ZUGRIFF.OPS (i file 100000 recl 100 keyl 20
+cr /wwwroot/ops/PASSWRD.OPS (i file 500 recl 100 keyl 10
+&return
+
+daten.opbk:
+cr /wwwroot
+cr /wwwroot/opbk/FEHLLOG.OPBK (i file 1000 recl 150 keyl 20
+cr /wwwroot/opbk/PARAMET.OPBK (i file 500 recl 500 keyl 10
+cr /wwwroot/opbk/PASSWRD.OPBK (i file 500 recl 100 keyl 10
+cr /wwwroot/opbk/STAMMDA.OPBK (i file 500 recl 100 keyl 20
+cr /wwwroot/opbk/ZUGRIFF.OPBK (i file 100000 recl 100 keyl 20
+&return
+
+

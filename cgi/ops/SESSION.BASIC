@@ -1,0 +1,61 @@
+000010 REM Programm zur Loginverwaltung
+000020 REM 05.01.2009 - Schmidt (Programmerstellung)
+000030 REM 04.02.2009 - Schmidt (MD5 Hash Session-ID)
+000040 
+000050      INCLUDE "CGI"
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionverwaltung
+000090 
+000100      ON ERROR GOTO ERROR.ROUT
+000110 
+000120      OPTION VERSION 1.0.02,"Mittermeier & Ungelenk GmbH"
+000130 
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("mita",ADDROF(MITA$))
+000160      CALL CGI.GET("passwd",ADDROF(PASSWD$))
+000170      CALL CGI.GET("sid",ADDROF(SID$))
+000180      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000190 
+000200      COMMON MITA$,SID$
+000210      SELECT 
+000220           CASE MITA$<>"" AND PASSWD$<>"" AND AKTION$="Anmelden" ! Anmeldung
+000230                KY2$ = "1"&UCASE$(MITA$)
+000240                FL% = 2 \ FL$ = "PASSWRD.OPS" \ OPEN #2:"/WWWROOT/OPS/PASSWRD.OPS", INPUT INDEXED 
+000250                READ #2,KY2$:XMITA$,CHKPASSWD$ \ CLEAR FL%
+000260                IF EOF(2) ! Mitarbeiter nicht gefunden
+000270                     CLOSE #2
+000280                     CALL CGI.TEMPLATE.VAR("msg1","Mitarbeiter oder Passwort falsch!")
+000290                     CALL CGI.TEMPLATE("/wwwroot/ops/error.asp")
+000300                     GOTO ENDE
+000310                     IFEND 
+000320                IF NOT EOF(2) ! Kundennummer gefunden
+000330                     IF TRIM$(PASSWD$)<>TRIM$(CHKPASSWD$) ! Passwort stimmt nicht
+000340                          CALL CGI.TEMPLATE.VAR("msg1","Falsches Passwort!")
+000350                          RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000360                          CALL CGI.TEMPLATE("/wwwroot/ops/error.asp")
+000370                          GOTO ENDE
+000380                          IFEND 
+000390 
+000400                     RC$ = FN.WFSESSION$("session.generate","",MITA$)
+000410                     SID$ = RC$ ! Rückgabewert v. WFSESSION ist Session-ID
+000420 !                    FL% = 5 \ OPEN #5:"/WWWROOT/OPS/ZUGRIFF.OPS", OUTPUT INDEXED
+000430 !                    WRITE #5,"1"&MITA$&STR$(DAY(DATE$(0)))&STR$(SECOND(TIME$(0))):MITA$
+000440 !                    CLOSE #5
+000450                     CHAIN "index" ! index autom. ausführen und parsen
+000460                     IFEND 
+000470           CASE AKTION$="Abmelden"
+000480                RC$ = FN.WFSESSION$("session.destroy",SID$,MITA$)
+000490                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000500                CALL CGI.TEMPLATE("/wwwroot/ops/logout.asp")
+000510           OTHERWISE 
+000520                CALL CGI.TEMPLATE.VAR("msg1","Fehler! Bitte überprüfen Sie ihre Eingaben")
+000530                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000540                CALL CGI.TEMPLATE("/wwwroot/ops/error.asp")
+000550                GOTO ENDE
+000560           CEND 
+000570 ENDE:
+000580      END \ QUIT 
+000590 REM ---------------------------------------------------------
+000600 ERROR.ROUT:
+000610      RC$ = FN.WFKIFEHL$("session",ERR,ERL,CRC$,FL%)

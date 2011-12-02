@@ -1,0 +1,63 @@
+000010 REM Programm zur Anzeige der heim_auswahl.tpl Datei
+000020 REM 05.01.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIHEIM.INC" ! Heimauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000170      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000171      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000180 REM *******************************************************
+000190 REM ************ Session prüfen ***************
+000200      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000210 
+000220      SELECT AKTION$
+000230           CASE "Start"
+000250                LEER$ = "&nbsp;" ! HTML-Code Leerzeichen
+000260                UMBR$ = "<br />" ! HTML-Code Zeilenumbruch
+000270                THEMA1$ = "W&auml;hlen Sie hier das Heim mit dem Sie weiter arbeiten m&ouml;chten... <br />"
+000290                FORMSTART$ = "<form action=""/cgi.ops/heim_idx"" method=""post"">"
+000310                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000330                PARA1$ = FN.FORM.HIDDEN$("aktion","start") ! Aktion versteckt
+000340                PARA2$ = FN.FORM.HIDDEN$("mita",MITA$)
+000350                PARA4$ = FN.FORM.HIDDEN$("sid",SID$) ! Session-ID
+000360                BUTTON$ = FN.FORM.BUTTON$("Anzeigen","Anzeigen")
+000370                FORMENDE$ = "</form>"
+000380           REM -------- BEWOHNER LESEN ANFANG ---------
+000390                RC$ = FNWFKIHEIM$(NIX$)
+000400           REM -------- BEWOHNER LESEN ENDE ---------
+000430                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000460                CALL CGI.TEMPLATE.VAR("auswahl-nummer-box",AUSWAHL.NUMMER$)
+000470                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000490                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000500                CALL CGI.TEMPLATE.VAR("eingabe",EINGABE$)
+000510                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000520                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000530                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000540                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000550                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000560                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000570                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000580                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000590                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000600                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000610                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/heim_auswahl.tpl")
+000620                GOTO ENDE
+000630           OTHERWISE 
+000640                PRINT "Hacking attempt!" ! Versuchter Hack der Seite?!
+000650                STOP 
+000660           CEND 
+000670 ENDE:
+000680      END \ QUIT 
+000690 REM ------------------------------------------------
+000700 ERROR.ROUT:
+000710      RC$ = FN.WFKIFEHL$("heim_auswahl",ERR,ERL,CRC$,FL%)

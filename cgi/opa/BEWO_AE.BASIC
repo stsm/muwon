@@ -1,0 +1,322 @@
+000010 REM Programm zur Übernahme der geänderten Bewohnerdaten
+000020 REM 03.07.2008 - Schmidt (Programmerstellung)
+000030 REM 25.07.2008 - Schmidt (eMail Protokoll geändert)
+000040 REM 05.11.2008 - Schmidt (Korrekturtage)
+000050 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2 )
+000060 REM 24.11.2008 - Schmidt (Altenheimprotokoll)
+000070 REM 18.12.2008 - Schmidt (GET Varibale sperrrei)
+000080 REM 02.06.09 - Schmidt (Mail Passwort auf falscher Variable)
+000090 
+000100      INCLUDE "CGI"
+000110      INCLUDE "EMAIL" ! Email Toolkit
+000120      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000130      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000140      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000150      INCLUDE "WFBEWAEN.INC" ! Änderungsmerker [SUB PROGRAMM]
+000160 
+000170      OPTION VERSION 2.0.03,"Mitttermeier & Ungelenk GmbH"
+000180 
+000190      ON ERROR GOTO ERROR.ROUT
+000200 
+000210 REM *******************************************************
+000220      CALL CGI.INIT
+000230      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000240      CALL CGI.GET("sid",ADDROF(SID$))
+000250      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000260 REM *******************************************************
+000270      CALL CGI.GET("bewnr",ADDROF(BEWNR$)) ! Bewohnernummer
+000280      CALL CGI.GET("bewname",ADDROF(BEWNAME$)) ! Bewohnername
+000290      CALL CGI.GET("zimmer",ADDROF(BEWZIMMER$)) ! Zimmer
+000300      CALL CGI.GET("station",ADDROF(BEWSTATION$)) ! Station
+000310      CALL CGI.GET("opas",ADDROF(BEWOPAS$)) ! Opas Nummer
+000320      CALL CGI.GET("zahler",ADDROF(BEWZAHLART$)) ! Zahlungsart
+000330      CALL CGI.GET("sperrerei",ADDROF(BEWSPREI$)) ! Sperre Reinigung
+000340      CALL CGI.GET("abrechnung",ADDROF(BEWABRECH$)) ! Abrechnungsausw.
+000350      CALL CGI.GET("name1",ADDROF(BEWZAHLER1$)) ! Zahlername 1
+000360      CALL CGI.GET("name2",ADDROF(BEWZAHLER2$)) ! Zahlername 2
+000370      CALL CGI.GET("name3",ADDROF(BEWZAHLER3$)) ! Zahlername 3
+000380      CALL CGI.GET("str",ADDROF(BEWSTRASSE$)) ! Straße
+000390      CALL CGI.GET("plz",ADDROF(BEWPLZ$)) ! Postleitzahl
+000400      CALL CGI.GET("ort",ADDROF(BEWORT$)) ! Ort
+000410      CALL CGI.GET("bank",ADDROF(BEWBANK$)) ! Name der Bank
+000420      CALL CGI.GET("kto",ADDROF(BEWKTO$)) ! Kontonummer
+000430      CALL CGI.GET("blz",ADDROF(BEWBLZ$)) ! Bankleitzahl
+000440      CALL CGI.GET("info",ADDROF(BEWANMERKUNG$)) ! Anmerkung
+000450      CALL CGI.GET("sperre",ADDROF(BEWSPERRE$)) ! Bewohnersperre
+000460 REM *******************************************************
+000470 REM ************ Session prüfen ***************
+000480      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000490      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000500 REM *******************************************
+000510      JAHR$ = DATE$(0)[7:10]
+000520      MONAT$ = DATE$(0)[4:5]
+000530      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite </font></a>"
+000540      NAVIGATION2$ = "<a href=""javascript:document.bewo_idx.submit();""><img src=""../../global/pics/user.png"" border=""0""><font face=""verdana"" size=""2"">zur&uuml;ck zu Bewohner </font></a>"
+000550      NAVIGATION.FORM$ = "<form action=""/cgi.opa/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000560      NAVIGATION.FORM2$ = "<form action=""/cgi.opa/bewo_idx"" name=""bewo_idx"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000570      SELECT AKTION$
+000580           CASE "Absenden"
+000590                FL% = 3 \ OPEN #3:"/WWWROOT/OPA/PARAMET.OPA", UPDATE INDEXED 
+000600                FL% = 4 \ OPEN #4:"/WWWROOT/EXPORT/BEWOEXP.OPA", OUTPUT INDEXED ! Exportdatei für KKSD & KKCL
+000610                FL% = 5 \ OPEN #5:"/WWWROOT/OPA/STAMMDA.OPA", UPDATE INDEXED 
+000620                FL% = 7 \ OPEN #7:"/WWWROOT/OPA/ANABMLD.OPA", INPUT INDEXED 
+000630                KY3$ = "1"&FKDNR$
+000640                KY5$ = "1BAE"&FKDNR$
+000650                KY7$ = "1"&FKDNR$&FORMAT$(VAL(BEWNR$),"999999")&JAHR$&MONAT$
+000660                GOSUB L3 \ UNLOCK #3
+000670                GOSUB L5 \ UNLOCK #5 !
+000680                IF BANMERK>=900000.0 THEN BANMERK = 0
+000690                BANMERK = BANMERK+1
+000700                KY4$ = "1BAE"&FKDNR$&FORMAT$(BANMERK,"999999")
+000710                IF VAL(BEWZAHLART$)=0 ! keine Überweisung - vorsorg. lö
+000720                     CLEAR BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$
+000730                     IFEND 
+000740                GOSUB L7 \ UNLOCK #7 ! An- /Abmeldung lesen
+000750                IF TRIM$(BEWANMERKUNG$)="" THEN BEWANMERKUNG$ = "keine Anmerkung"
+000760                WRITE #4,KY4$:FKDNR$,VAL(BEWNR$),BEWNAME$,BEWZIMMER$,BEWSTATION$,BEWOPAS$,VAL(BEWZAHLART$),VAL(BEWSPREI$),VAL(BEWABRECH$),BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$,BEWANMERKUNG$,VAL(BEWSPERRE$),E.TAGE%,RES$,RES$,RES$,RES%,RES%,RES,RES,DATE$(0),TIME$(0)
+000770                KY5$ = "1BAE"&FKDNR$
+000780                GOSUB S5 !
+000790                CLOSE #3 \ CLOSE #4 \ CLOSE #5
+000800                FL% = 11 \ OPEN #11:"/FISTAM.REI", INPUT INDEXED 
+000810                KY11$ = "101"
+000820                FL% = 11 \ READ #11,KY11$:ZNR%,ZA1$,ZA2$,ZLA$,ZST$,ZPL,ZOR$,ZTE$,ZTX$,ZTXX$,TEMP$,TEMP$,ZF100$,ZF101$,ZF102$,ZF103$,ZF104$,ZF105$ \ UNLOCK #11 \ CLEAR FL%
+000830                KY11$ = "1KISS"
+000840                FL% = 11 \ READ #11,"1KISS":MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$ \ UNLOCK #98 \ CLEAR FL%
+000850                CLOSE #11
+000860                IF EMAIL%=1 AND ZF105$<>"" ! Email Protokoll an Wäscherei
+000870                     FL% = 10 \ OPEN #10:"/KUSTWA.REI", INPUT INDEXED 
+000880                     FL% = 14 \ OPEN #14:"/WWWROOT/OPA/SETTING.OPA", INPUT INDEXED 
+000890                     KY10$ = "1"&FKDNR$
+000900                     KY14$ = "1"&FKDNR$
+000910                     GOSUB L10 \ UNLOCK #10 ! Kundenstamm Wäscherei lesen
+000920                     GOSUB L14 \ UNLOCK #14 ! persönl. Einstellungen lesen
+000930                     CLOSE #10 \ CLOSE #14
+000940                     FL% = 12 \ OPEN #12:"/BEWOH1.REI", INPUT INDEXED ! Bewo.-stamm
+000950                     KY12$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(BEWNR$),"999999")
+000960                     GOSUB L12 \ UNLOCK #12 ! Bewohnerstamm lesen
+000970                     CLOSE #12
+000980                     FL% = 2 \ OPEN #2:SID$&".email:m", OUTPUT SEQUENTIAL 
+000990                     PRINT #2:"To: ";TRIM$(LCASE$(ZF105$))
+001000                     IF VAL(PROTOKOLL$)=1 ! Altenheimprotokoll
+001010                          PRINT #2:"Cc: ";TRIM$(LCASE$(EMAIL$))
+001020                          IFEND 
+001030                     PRINT #2:"From: ";TRIM$(LCASE$(ZF105$))
+001040                     PRINT #2:"Subject: Bewohner geändert "&DATE$(0)&"-"&TIME$(0)
+001050                     PRINT #2:""
+001060                     PRINT #2:"Kundennummer "&FKDNR$&" ("&TRIM$(KA1$)&","&TRIM$(KA2$)&") hat die Stammdaten eines Bewohners geändert"
+001070                     PRINT #2
+001080                     PRINT #2:"****** ÄNDERUNGEN VOM HEIM *****"
+001090                     PRINT #2:"Bewohnername..: "&TRIM$(BEWNAME$)
+001100                     PRINT #2:"Bewohnernummer: "&TRIM$(BEWNR$)
+001110                     CALL WFBEWAEN(ASP2$,BEWZIMMER$)
+001120                REM AEM$= SHARED Varibale aus CALL WFBEWAEN
+001130                     PRINT #2:"Zimmer........: "&TRIM$(BEWZIMMER$)&AEM$
+001140                     CALL WFBEWAEN(ASP3$[1:5],BEWSTATION$)
+001150                     PRINT #2:"Station.......: "&TRIM$(BEWSTATION$)&AEM$
+001160                     SELECT VAL(BEWSPERRE$) ! Text für Merker im Prot.
+001170                          CASE 0
+001180                               BEWSPERRE.TXT$ = "nicht gesperrt"
+001190                          CASE 1
+001200                               BEWSPERRE.TXT$ = "gesperrt"
+001210                          CASE 2
+001220                               BEWSPERRE.TXT$ = "gestorben"
+001230                          CASE 3
+001240                               BEWSPERRE.TXT$ = "umgezogen"
+001250                          CEND 
+001260                     CALL WFBEWAEN(ASP3$[6:6],BEWSPERRE$)
+001270                     PRINT #2:"Bew.-sperre...: "&STR$(VAL(BEWSPERRE$))&" - "&BEWSPERRE.TXT$&AEM$
+001280                     CALL WFBEWAEN(ASP3$[54:68],BEWOPAS$)
+001290                     EZL$ = "Patienten-Nr..:" \ IF TRIM$(BEWOPAS$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWOPAS$)
+001300                     PRINT #2:EZL$&AEM$
+001310                     SELECT VAL(BEWABRECH$)
+001320                          CASE 0
+001330                               BEWABRECH.TXT$ = "Heim"
+001340                          CASE 1
+001350                               BEWABRECH.TXT$ = "Bewohner"
+001360                          CEND 
+001370                     CALL WFBEWAEN(STR$(ASP7%),BEWABRECH$)
+001380                     PRINT #2:"Abrg.-ausw....: "&TRIM$(BEWABRECH$)&" - "&BEWABRECH.TXT$&AEM$
+001390                     SELECT VAL(BEWSPREI$)
+001400                          CASE 0
+001410                               BEWSPREI.TXT$ = "nicht gesperrt"
+001420                          CASE 1
+001430                               BEWSPREI.TXT$ = "gesperrt"
+001440                          CEND 
+001450                     CALL WFBEWAEN(ASP3$[69:69],BEWSPREI$)
+001460                     PRINT #2:"Sperre Rein...: "&TRIM$(BEWSPREI$)&" - "&BEWSPREI.TXT$&AEM$
+001470                     SELECT VAL(BEWZAHLART$)
+001480                          CASE 0
+001490                               BEWZAHLART.TXT$ = "keine"
+001500                          CASE 1
+001510                               BEWZAHLART.TXT$ = "bar"
+001520                          CASE 2
+001530                               BEWZAHLART.TXT$ = "Bankeinzug"
+001540                          CASE 3
+001550                               BEWZAHLART.TXT$ = "Überweisung"
+001560                          CEND 
+001570                     CALL WFBEWAEN(ASP3$[8:8],BEWZAHLART$)
+001580                     PRINT #2:"Zahlungsart...: "&TRIM$(BEWZAHLART$)&" - "&BEWZAHLART.TXT$&AEM$
+001590                     !CALL WFBEWAEN(ASP3$[82:83],STR$(E.TAGE%))
+001600                     PRINT #2:"Korrekturtage.: +"&STR$(E.TAGE%)
+001610                     CLEAR AEM$
+001620                     IF BEWZAHLER1$<>"" ! Zahlerinfos
+001630                          FL% = 13 \ OPEN #13:"/BEWO10.REI", INPUT INDEXED ! Zahleradresse für Bewohner
+001640                          KY13$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(BEWNR$),"999999")
+001650                          GOSUB L13 \ UNLOCK #13 \ CLOSE #13 ! Zahleradresse lesen
+001660                          CALL WFBEWAEN(BKA1$,BEWZAHLER1$)
+001670                          EZL$ = "Zahlername 1..:" \ IF TRIM$(BEWZAHLER1$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWZAHLER1$)
+001680                          PRINT #2:EZL$&AEM$
+001690                          CALL WFBEWAEN(BKA2$,BEWZAHLER2$)
+001700                          EZL$ = "Zahlername 2..:" \ IF TRIM$(BEWZAHLER2$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWZAHLER2$)
+001710                          PRINT #2:EZL$&AEM$
+001720                          CALL WFBEWAEN(BKA3$,BEWZAHLER3$)
+001730                          EZL$ = "Zahlername 3..:" \ IF TRIM$(BEWZAHLER3$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWZAHLER3$)
+001740                          PRINT #2:EZL$&AEM$
+001750                          CALL WFBEWAEN(BKST$,BEWSTRASSE$)
+001760                          EZL$ = "Straße........:" \ IF TRIM$(BEWSTRASSE$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWSTRASSE$)
+001770                          PRINT #2:EZL$&AEM$
+001780                          CALL WFBEWAEN(BKOR$,BEWORT$)
+001790                          EZL$ = "PLZ / Ort.....:" \ IF TRIM$(BEWPLZ$)<>"" OR TRIM$(BEWORT$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWPLZ$)&" / "&TRIM$(BEWORT$)
+001800                          PRINT #2:EZL$&AEM$
+001810                          CALL WFBEWAEN(BK1$,BEWBANK$)
+001820                          EZL$ = "Bank..........:" \ IF TRIM$(BEWBANK$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWBANK$)
+001830                          PRINT #2:EZL$&AEM$
+001840                          CALL WFBEWAEN(STR$(BK3),BEWKTO$)
+001850                          EZL$ = "Konto.-Nr.....:" \ IF TRIM$(BEWKTO$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWKTO$)
+001860                          PRINT #2:EZL$&AEM$
+001870                          CALL WFBEWAEN(STR$(BK2),BEWBLZ$)
+001880                          EZL$ = "Bankleitzahl..:" \ IF TRIM$(BEWBLZ$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BEWBLZ$)
+001890                          PRINT #2:EZL$&AEM$
+001900                          IFEND 
+001910                     PRINT #2
+001920                     PRINT #2:"-----------------------------------------"
+001930                     PRINT #2
+001940                     PRINT #2:"***** ZUSTAND AUS BEWOHNERSTAMM *****"
+001950                     PRINT #2:"Bewohnername..: "&TRIM$(ASBE$)
+001960                     PRINT #2:"Bewohnernummer: "&STR$(ASNR)
+001970                     PRINT #2:"Zimmer........: "&TRIM$(ASP2$)
+001980                     PRINT #2:"Station.......: "&TRIM$(ASP3$[1:5])
+001990                     SELECT VAL(ASP3$[6:6]) ! Text für Merker im Prot.
+002000                          CASE 0
+002010                               BEWSPERRE.TXT$ = "nicht gesperrt"
+002020                          CASE 1
+002030                               BEWSPERRE.TXT$ = "gesperrt"
+002040                          CASE 2
+002050                               BEWSPERRE.TXT$ = "gestorben"
+002060                          CASE 3
+002070                               BEWSPERRE.TXT$ = "umgezogen"
+002080                          CEND 
+002090                     PRINT #2:"Bew.-sperre...: "&TRIM$(ASP3$[6:6])&" - "&BEWSPERRE.TXT$
+002100                     EZL$ = "Patienten-Nr..:" \ IF TRIM$(ASP3$[54:68])<>"" THEN EZL$ = EZL$&" "&TRIM$(ASP3$[54:68])
+002110                     PRINT #2:EZL$
+002120                     SELECT ASP7% ! Abrechnungsauwahl
+002130                          CASE 0
+002140                               BEWABRECH.TXT$ = "Heim"
+002150                          CASE 1
+002160                               BEWABRECH.TXT$ = "Bewohner"
+002170                          CEND 
+002180                     PRINT #2:"Abrg.-ausw....: "&STR$(ASP7%)&" - "&BEWABRECH.TXT$
+002190                     SELECT VAL(ASP3$[69:69]) ! Sperre Reinigung
+002200                          CASE 0
+002210                               BEWSPREI.TXT$ = "nicht gesperrt"
+002220                          OTHERWISE 
+002230                               BEWSPREI.TXT$ = "gesperrt"
+002240                          CEND 
+002250                     PRINT #2:"Sperre Rein...: "&TRIM$(ASP3$[69:69])&" - "&BEWSPREI.TXT$
+002260                     SELECT VAL(ASP3$[8:8])
+002270                          CASE 0
+002280                               BEWZAHLART.TXT$ = "keine"
+002290                          CASE 1
+002300                               BEWZAHLART.TXT$ = "bar"
+002310                          CASE 2
+002320                               BEWZAHLART.TXT$ = "Bankeinzug"
+002330                          CASE 3
+002340                               BEWZAHLART.TXT$ = "Überweisung"
+002350                          CEND 
+002360                     PRINT #2:"Zahlungsart...: "&ASP3$[8:8]&" - "&BEWZAHLART.TXT$
+002370                     PRINT #2:"Korrekturtage.: "&STR$(VAL(ASP3$[82:83]))
+002380                     IF BEWZAHLER1$<>"" ! Zahlerinfos
+002390                          EZL$ = "Zahlername 1..:" \ IF TRIM$(BKA1$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BKA1$)
+002400                          PRINT #2:EZL$
+002410                          EZL$ = "Zahlername 2..:" \ IF TRIM$(BKA2$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BKA2$)
+002420                          PRINT #2:EZL$
+002430                          EZL$ = "Zahlername 3..:" \ IF TRIM$(BKA3$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BKA3$)
+002440                          PRINT #2:EZL$
+002450                          EZL$ = "Straße........:" \ IF TRIM$(BKST$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BKST$)
+002460                          PRINT #2:EZL$
+002470                          EZL$ = "PLZ / Ort.....:" \ IF STR$(BKPL)<>"" OR TRIM$(BKOR$)<>"" THEN EZL$ = EZL$&" "&STR$(BKPL)&" / "&TRIM$(BKOR$)
+002480                          PRINT #2:EZL$
+002490                          EZL$ = "Bank..........:" \ IF TRIM$(BK1$)<>"" THEN EZL$ = EZL$&" "&TRIM$(BK1$)
+002500                          PRINT #2:EZL$
+002510                          EZL$ = "Konto.-Nr.....:" \ IF STR$(BK3)<>"" THEN EZL$ = EZL$&" "&STR$(BK3)
+002520                          PRINT #2:EZL$
+002530                          EZL$ = "Bankleitzahl..:" \ IF STR$(BK2)<>"" THEN EZL$ = EZL$&" "&STR$(BK2)
+002540                          PRINT #2:EZL$ \ CLEAR EZL$
+002550                          IFEND 
+002560                     PRINT #2
+002570                     PRINT #2:"Anmerkung.....: "&TRIM$(BEWANMERKUNG$)
+002580                     PRINT #2
+002590                     PRINT #2:DATE$(0)&" - "&TIME$(0)
+002600                     CLOSE #2 \ CLEAR FL%
+002610                     CALL EMAIL.PROFILEEX("",TRIM$(MIP$),TRIM$(MUS$),TRIM$(MPAS$),"","","","",STR$(VAL(MPORT$)),"")
+002620                     CALL EMAIL.SEND(SID$&".email:m",0)
+002630                     RC = CALL.RETURN.VALUE
+002640                     IF CALL.RETURN.VALUE>0
+002650                          CALL EMAIL.ERROR.MSG(RC,ADDROF(CRC$))
+002660                          GOTO ERROR.ROUT
+002670                          IFEND 
+002680                     SYSTEM "er "&SID$&".email:m (noq"
+002690                     IFEND 
+002700                MSG$(1) = "Daten wurden erfolgreich ge&auml;ndert!"
+002710                MSG$(2) = "<br />Es wird ein Mitarbeiter der W&auml;scherei benachrichtigt um die Daten zu &uuml;berpr&uuml;fen."
+002720           OTHERWISE 
+002730                PRINT "Hacking attempt!" \ STOP 
+002740           CEND 
+002750      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+002760      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+002770      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+002780      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+002790      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+002800      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+002810      CALL CGI.TEMPLATE.VAR("navigation2",NAVIGATION2$)
+002820      CALL CGI.TEMPLATE.VAR("navigation.form2",NAVIGATION.FORM2$)
+002830      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+002840      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/hinweis.tpl")
+002850 ENDE:
+002860      END \ QUIT 
+002870 REM ------------------------------------------------
+002880 ERROR.ROUT:
+002890      RC$ = FN.WFKIFEHL$("bewo_ae",ERR,ERL,CRC$,FL%)
+002900 
+002910 REM --------------------------------------------------------
+002920 L3: ! OPA Kundenstamm lesen
+002930      FL% = 3 \ READ #3,KY3$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA% \ CLEAR FL%
+002940      RETURN 
+002950 REM --------------------------------------------------------
+002960 L5: ! OPA Firmenstamm lesen
+002970      FL% = 5 \ READ #5,KY5$:XX$,BANMERK \ CLEAR FL%
+002980      RETURN 
+002990 REM --------------------------------------------------------
+003000 S5: ! OPA Firmenstamm schreiben
+003010      FL% = 5 \ WRITE #5,KY5$:FKDNR$,BANMERK,DATE$(0),TIME$(0) \ CLEAR FL%
+003020      RETURN 
+003030 REM --------------------------------------------------------
+003040 L7: ! An- /Abmeldung lesen ANABMLD:OPA
+003050      READ #7,KY7$:GES.TAGE%,E.TAGE%
+003060      RETURN 
+003070 REM --------------------------------------------------------
+003080 L10: ! Kundenstamm lesen
+003090      FL% = 10 \ READ #10,KY10$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG$,KDB,K1%,K2%,KRB$,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX1$,XX2$,FK1% \ CLEAR FL%
+003100      RETURN 
+003110 REM --------------------------------------------------------
+003120 L12: ! Bewohnerstamm lesen
+003130      FL% = 12 \ READ #12,KY12$:AS1%,AS2%,ZNR%,KNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,TEMP$,TEMP$
+003140      RETURN 
+003150 REM ------------------------------------------------------
+003160 L13: ! Zahleradresse lesen
+003170      FL% = 13 \ READ #13,KY13$:BKFR%,BKNR,BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$ \ CLEAR FL%
+003180      RETURN 
+003190 REM --------------------------------------------------------
+003200 L14: ! persönliche Einstellungen Altenheim lesen
+003210      READ #14,KY14$:EMAIL$,XX$,XX$,XX$,PROTOKOLL$,XX%,XX%,XX%
+003220      RETURN 

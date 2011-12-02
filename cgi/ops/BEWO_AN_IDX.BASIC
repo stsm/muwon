@@ -1,0 +1,34 @@
+000010 REM Programm zur Anzeige der bewo_an_idx.tpl Datei
+000020 REM 09.01.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFZUGANG.INC" ! Zugangsprüfung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.01,"Mitttermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session ID
+000190 REM *******************************************************
+000200 
+000210 REM ************ Session prüfen ***************
+000220      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000230      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000240 
+000250      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000260      CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000270      CALL CGI.TEMPLATE.VAR("sid",SID$)
+000280      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000290      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/bewo_an_idx.tpl")
+000300 ENDE:
+000310      END \ QUIT 
+000320 REM ------------------------------------------------
+000330 ERROR.ROUT:
+000340      RC$ = FN.WFKIFEHL$("bewo_an_idx",ERR,ERL,CRC$,FL%)

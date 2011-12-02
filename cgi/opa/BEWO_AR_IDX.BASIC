@@ -1,0 +1,88 @@
+000010 REM Programm zur Anzeige der bewo_ar_idx.tpl Datei
+000020 REM 19.12.2007 - Schmidt (Programmerstellung)
+000030 REM 22.05.2008 - SChmidt (Fehlerbehandlung)
+000040 REM 29.10.2008 - SChmidt (Suchname)
+000050 REM 14.11.2008 - SChmidt (Umbau auf "OPA" - Version 2)
+000060 
+000070      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000100      INCLUDE "WFZUGANG.INC" ! Zugangsprüfung
+000110      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000120      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000130 
+000140      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000150 
+000160      ON ERROR GOTO ERROR.ROUT
+000170 
+000180 REM *******************************************************
+000190      CALL CGI.INIT
+000200      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000210      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000220      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000230 REM *******************************************************
+000240 
+000250 REM ************ Session prüfen ***************
+000260      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000270      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000280 REM ************ Zugang prüfen ***************
+000290      RC$ = FN.WFZUGANG$("bewo_ar",FKDNR$)
+000300 REM *******************************************
+000310 
+000320      FL% = 1 \ OPEN #1:"/WWWROOT/OPA/PARAMET.OPA", INPUT INDEXED 
+000330      KY1$ = "1"&FKDNR$
+000340      READ #1,KY1$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%
+000350      CLOSE #1
+000360 
+000370      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000380      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000390      SELECT AKTION$
+000400           CASE "start"
+000410                THEMA1$ = "Bewohnerartikel inkl. Barcodes <br />"
+000420                THEMA2$ = "Wählen Sie einen Bewohner und ggf. Anzeigeoptionen <br />"
+000430                FORMSTART$ = "<form action=""/cgi.opa/bewo_ar_aus"" method=""post"">"
+000440                SELECT.NAMEN$ = FN.FORM.SELECT$("namen",1)
+000450                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000460                SELECT.SUCHNA$ = FN.FORM.SELECT$("suchna",1)
+000470                SELECT.ARTIKEL$ = FN.FORM.SELECT$("artikel",1)
+000480                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000490                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000500                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000510                PARA4$ = FN.FORM.HIDDEN$("sort","1") ! nach Art.Nr. sort
+000520                BUTTON$ = FN.FORM.BUTTON$("Anzeigen","Anzeigen")
+000530                FORMENDE$ = "</form>"
+000540           REM -------- BEWOHNER LESEN ANFANG ---------
+000550                RC$ = FNWFKIBEWA$(FKDNR$)
+000560           REM -------- BEWOHNER LESEN ENDE ---------
+000570                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000580                CALL CGI.TEMPLATE.VAR("select.namen",SELECT.NAMEN$)
+000590                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000600                CALL CGI.TEMPLATE.VAR("select.suchna",SELECT.SUCHNA$)
+000610                IF BARV%=1 ! wenn Vollständige - nach Staus suchen erlauben
+000620                     CALL CGI.TEMPLATE.VAR("select.artikel",SELECT.ARTIKEL$)
+000630                     IFEND 
+000640                CALL CGI.TEMPLATE.VAR("auswahl-namen-box",AUSWAHL.NAMEN$)
+000650                CALL CGI.TEMPLATE.VAR("auswahl-nummer-box",AUSWAHL.NUMMER$)
+000660                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000670                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000680                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000690                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000700                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000710                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000720                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000730                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000740                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000750                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000760                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000770                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000780                CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_ar_idx.tpl")
+000790                GOTO ENDE
+000800           OTHERWISE 
+000810                PRINT "Hacking attempt!"
+000820                STOP 
+000830           CEND 
+000840 ENDE:
+000850      END \ QUIT 
+000860 REM ------------------------------------------------
+000870 ERROR.ROUT:
+000880      RC$ = FN.WFKIFEHL$("bewo_ar_idx",ERR,ERL,CRC$,FL%)

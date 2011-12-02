@@ -1,0 +1,71 @@
+000010 REM Programm zum Email versenden
+000020 
+000030      INCLUDE "CGI" ! Common Gateway Interface
+000040      INCLUDE "EMAIL" ! Mail Toolkit
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      OPTION VERSION 2.0.02,"Mittermeier & Ungelenk GmbH"
+000100      ON ERROR GOTO ERROR.ROUT
+000110 
+000120 REM *******************************************************
+000130      CALL CGI.INIT
+000140      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000150      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000160      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Passwort übernehmen
+000170      CALL CGI.GET("name",ADDROF(NAME$)) ! Name aus Formular übernehmen
+000180      CALL CGI.GET("betreff",ADDROF(BETREFF$)) ! Betreff aus Form.
+000190      CALL CGI.GET("anliegen",ADDROF(ANLIEGEN$)) ! Anliegen aus Form.
+000200 REM *******************************************************
+000210 REM ************ Session prüfen ***************
+000220      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000230      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000240 REM *******************************************
+000250 
+000260      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite</a></font>"
+000270      NAVIGATION.FORM$ = "<form action=""/cgi.opa/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000280      SELECT AKTION$
+000290           CASE "Absenden"
+000300                FL% = 98 \ OPEN #98:"/FISTAM.REI", INPUT INDEXED ! Firmenstamm für Email
+000310                READ #98,"101":XX%,ZA1$,ZA2$,ZST$,ZLA$,ZPL,ZOR$,ZTE$,ZTX$,ZTTX$,XXXX1$,XXXX2$,ZF100$,ZF101$,ZF102$,ZF103$,ZF104$,ZF105$ \ UNLOCK #98
+000320                READ #98,"1KISS":MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$ \ UNLOCK #98
+000330                CLOSE #98
+000340                FL% = 99 \ OPEN #99:SID$&".email:m", OUTPUT SEQUENTIAL 
+000350                PRINT #99:"To: <";TRIM$(LCASE$(ZF105$))&">"
+000360                PRINT #99:"From: <";TRIM$(LCASE$(ZF105$))&">"
+000370                PRINT #99:"Subject: Nachricht OPA Portal vom "&DATE$(0)&"-"&TIME$(0)
+000380                PRINT #99:""
+000390                PRINT #99:"Name   : "&NAME$
+000400                PRINT #99:"Kd.Nr  : "&FKDNR$
+000410                PRINT #99:"Betreff: "&BETREFF$
+000420                PRINT #99
+000430                PRINT #99:ANLIEGEN$
+000440                CLOSE #99 \ CLEAR FL%
+000450                CALL EMAIL.PROFILEEX("",TRIM$(MIP$),TRIM$(MUS$),TRIM$(MPAS$),"","","","")
+000460                CALL EMAIL.SEND(SID$&".email:m",0)
+000470                RC = CALL.RETURN.VALUE
+000480                IF CALL.RETURN.VALUE=0
+000490                     MSG$(1) = "Email wurde erfolgreich an <i>"&LCASE$(TRIM$(ZF105$))&"</i> verschickt!"
+000500                ELSE 
+000510                     CALL EMAIL.ERROR.MSG(RC,ADDROF(CRC$))
+000520                     GOTO ERROR.ROUT
+000530                     IFEND 
+000540                MSG$(2) = "<br/><a href=""javascript:document.home.submit();""><font face=""verdana"" size=""2""><br/>[ weiter >> ]</a></font>"
+000550                SYSTEM "er "&SID$&".email:m (not noq"
+000560           OTHERWISE 
+000570                PRINT "Hacking attempt!"
+000580                STOP 
+000590           CEND 
+000600      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000610      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000620      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000630      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+000640      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+000650      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+000660      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/hinweis.tpl")
+000670 ENDE:
+000680      END \ QUIT 
+000690 REM ------------------------------------------------
+000700 ERROR.ROUT:
+000710      RC$ = FN.WFKIFEHL$("email",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,210 @@
+000010 REM Programm zur Anzeige der bk_ar_aus_alle.tpl Datei
+000020 REM 07.09.2009 Schmidt (Programmerstellung)
+000030 
+000040 REM *******************************************************
+000050      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFALLGEM.INC" ! allgemeine Funktionen
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170 REM *******************************************************
+000180 
+000190 REM ************ Session prüfen ***************
+000200      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000210      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000220 REM *******************************************
+000230 
+000240      COMMON EINGABE$,SID$,KDNR$,FKDNR$,AKTION$
+000250 
+000260      DIM LFNR$(5000),ARTBEZ$(5000),BARCODE$(5000),DATBEG$(5000),GEB$(5000),TRAENA1$(5000),TRAENA2$(5000),TRAENA3$(5000)
+000270      DIM SCHRANK$(5000),FACH$(5000),GROESSE$(5000),DATEIN$(5000),DATAUS$(5000)
+000280      DIM ARTNR(5000),STATUS%(5000),WASEQ%(5000),MESEQ%(5000)
+000290 
+000300 REM *******************************************************
+000310 
+000320      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000330      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000340      PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000350      SELECT AKTION$
+000360           CASE "list"
+000370                FL% = 20 \ OPEN #20:"/TRAE01.REI", INPUT INDEXED 
+000380                FL% = 21 \ OPEN #21:"/TRAE09.REI", INPUT INDEXED 
+000390                FL% = 23 \ OPEN #23:"/"&SID$&".temp:m", OUTPUT SEQUENTIAL ! Ausgabedatei für PDF
+000400                FL% = 24 \ OPEN #24:"/ARSTEU.REI", INPUT INDEXED 
+000410                FL% = 25 \ OPEN #25:"/WWWROOT/TEMP/"&SID$&".csv", OUTPUT SEQUENTIAL ! Ausgabedatei für CSV
+000420                GOSUB CSV.KOPF
+000430                KY21$ = "1"&FKDNR$
+000440                GOSUB L21 ! Suchindex Trägerartikel lesen
+000450                GOSUB L211 ! nächsten Satz
+000460                IF EOF(21) OR KY21$[2:7]<>FKDNR$ THEN GOTO 820
+000470                KY20$ = "1"&KY21$[20:31] ! Barcode/Transponder
+000480                GOSUB L20 ! Satz TRAE01.REI Trägerartikel
+000490                IF EOF(20) THEN GOTO 450 ! Trägerartikel fehlt
+000500                KY24$ = "1000000"&FORMAT$(TRAR,"999999")
+000510                GOSUB L24 ! Artikelstamm für Bez. lesen
+000520                I% = I%+1
+000530                IF EOF(24) ! Grundartikel nicht gefunden
+000540                     ARTBEZ$(I%) = "*** Artikel fehlt ***"
+000550                ELSE  ! Grundartikel gefunden
+000560                     ARTBEZ$(I%) = ASBE$
+000570                     IFEND 
+000580                LFNR$(I%) = STR$(I%)
+000590                STATUS%(I%) = TR94%
+000600                ARTNR(I%) = TRAR
+000610                BARCODE$(I%) = AKY20$[2:13]
+000620                DATBEG$(I%) = STR$(DAY(STR$(TR44)))
+000630                DATEIN$(I%) = STR$(DAY(TR54$))
+000640                DATAUS$(I%) = STR$(DAY(TR55$))
+000650                WASEQ%(I%) = TR53
+000660                MESEQ%(I%) = TR52
+000670                SCHRANK$(I%) = TR66$
+000680                FACH$(I%) = STR$(TR67)
+000690                GROESSE$(I%) = TR71$
+000700                GEB$(I%) = TR104$
+000710                TRAENA1$(I%) = TR61$
+000720                TRAENA2$(I%) = TR62$
+000730                TRAENA3$(I%) = TR63$
+000740                IF STATUS%(I%)<>0 THEN MENGEB% = MENGEB%+1 ELSE MENGEK% = MENGEK%+1 ! Menge im Betrieb/Kunde zählen
+000750                IF PDF.KOPF.MERKER%=0 ! Kopf das erste mal schreiben
+000760                     GOSUB KOPF
+000770                     PDF.KOPF.MERKER% = 1
+000780                     IFEND 
+000790                GOTO 450 ! nächsten Satz
+000800 
+000810 ! *********** ABSCHLIESSENDE AKTIONEN VOR SEITENGENERIERUNG ***********
+000820                IF I%=0 ! prüfen ob Träger Teile hat
+000830                     MSG$(1) = "<li>Es wurden keine W&auml;scheteile gefunden!</li>"
+000840                     GOTO FEHLER
+000850                     IFEND 
+000860 
+000870                FOR SORTLAUF% = 1 TO I%
+000880                     IF MOD(SORTLAUF%,2)=1 THEN FARBE$ = "#ccccbb"
+000890                     IF MOD(SORTLAUF%,2)=0 THEN FARBE$ = "#ffffff"
+000900                     CALL CGI.TEMPLATE.VAR("trae.art"&STR$(SORTLAUF%),"<tr bgcolor="""&FARBE$&"""><td align=""center"">"&LFNR$(SORTLAUF%)&"</td><td align=""center"">"&TRAENA1$(SORTLAUF%)&"</td><td align=""center"">"&TRAENA2$(SORTLAUF%)&"</td><td align=""center"">"&STR$(ARTNR(SORTLAUF%))&"</td><td align=""left"">"&ARTBEZ$(SORTLAUF%)[1:12]&"</td><td align=""center"">"&BARCODE$(SORTLAUF%)&"</td><td align=""center"">"&DATE$(VAL(DATBEG$(SORTLAUF%)))&"</td><td align=""center"">"&SCHRANK$(SORTLAUF%)&"</td><td align=""center"">"&FACH$(SORTLAUF%)&"</td><td align=""center"">"&GROESSE$(SORTLAUF%)&"</td><td align=""right"">"&STR$(MESEQ%(SORTLAUF%))&"</td><td align=""right"">"&STR$(WASEQ%(SORTLAUF%))&"</td><td align=""center"">"&GEB$(SORTLAUF%)&"</td></tr>")
+000910                     PDFZL$ = SPACE$(132)
+000920                     PDFZL$[1:4] = LFNR$(SORTLAUF%)
+000930                     PDFZL$[6:29] = TRAENA1$(SORTLAUF%)
+000940                     PDFZL$[30:52] = TRAENA2$(SORTLAUF%)
+000950                     PDFZL$[53:59] = STR$(ARTNR(SORTLAUF%))
+000960                     PDFZL$[60:73] = ARTBEZ$(SORTLAUF%)[1:13]
+000970                     PDFZL$[74:87] = BARCODE$(SORTLAUF%)
+000980                     PDFZL$[88:96] = DATE$(VAL(DATBEG$(SORTLAUF%)))
+000990                     PDFZL$[97:103] = SCHRANK$(SORTLAUF%)
+001000                     PDFZL$[104:110] = FACH$(SORTLAUF%)
+001010                     PDFZL$[111:115] = GROESSE$(SORTLAUF%)
+001020                     PDFZL$[116:118] = STR$(MESEQ%(SORTLAUF%))
+001030                     PDFZL$[119:121] = STR$(WASEQ%(SORTLAUF%))
+001040                     PDFZL$[122:130] = GEB$(SORTLAUF%)
+001050                     CSVZL$ = TRAENA1$(SORTLAUF%)&";"&TRAENA2$(SORTLAUF%)&";"&STR$(ARTNR(SORTLAUF%))&";"&ARTBEZ$(SORTLAUF%)&";"&BARCODE$(SORTLAUF%)&";"&DATE$(VAL(DATBEG$(SORTLAUF%)))&";"&SCHRANK$(SORTLAUF%)&";"&FACH$(SORTLAUF%)&";"&GROESSE$(SORTLAUF%)&";"&STR$(MESEQ%(SORTLAUF%))&";"&STR$(WASEQ%(SORTLAUF%))&";"&GEB$(SORTLAUF%)
+001060                     CSVZL$ = FN.UMLAUTE.ZU.WINDOWS$(CSVZL$)
+001070                     GOSUB CSV      ! Zeile für CSV Datei schreiben
+001080                     GOSUB PDF      ! Zeile in Ausgabedatei für PDF schreiben
+001090                     NEXT SORTLAUF%
+001100                CLOSE #23
+001110                SYSTEM "pdf /"&SID$&".temp:m > /WWWROOT/TEMP/"&SID$&".PDF (A4 LANDSCAPE COLS 132"
+001120                SYSTEM "er /"&SID$&".temp:m (noq" ! PDF-Arbeitsdatei löschen
+001130                PDFDOWN$ = "/temp/"&SID$&".PDF"
+001140                CSVDOWN$ = "/temp/"&SID$&".CSV"
+001150                MAXTEILE% = I%
+001160                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001170                CALL CGI.TEMPLATE.VAR("pdf.down",PDFDOWN$)
+001180                CALL CGI.TEMPLATE.VAR("csv.down",CSVDOWN$)
+001190                CALL CGI.TEMPLATE.VAR("trae.name",TRAENAME$)
+001200                CALL CGI.TEMPLATE.VAR("art.ges",STR$(MAXTEILE%))
+001210                CALL CGI.TEMPLATE.VAR("art.waesch",STR$(MENGEB%))
+001220                CALL CGI.TEMPLATE.VAR("art.kunde",STR$(MENGEK%))
+001230                CALL CGI.TEMPLATE.VAR("art.bet.txt","beim W&auml;scher: ")
+001240                CALL CGI.TEMPLATE.VAR("art.kun.txt","beim Kunden: ")
+001250                CALL CGI.TEMPLATE.VAR("trae.nr",FORMAT$(VAL(EINGABE$),"999999"))
+001260                CALL CGI.TEMPLATE.VAR("forma.sort",FORMA.SORT$)
+001270                CALL CGI.TEMPLATE.VAR("select.sort",SELECT.SORT$)
+001280                CALL CGI.TEMPLATE.VAR("art.eingang","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Eingang&nbsp;</strong></font></td>")
+001290                CALL CGI.TEMPLATE.VAR("art.ausgang","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Ausgang&nbsp;</strong></font></td>")
+001300                CALL CGI.TEMPLATE.VAR("art.status","<td align=""center""><font face=""verdana"" size=""2""><strong><a href=""#"" onMouseOver=""ZeigeToolTip('99')"" onMouseOut=""EntferneToolTip()"">Status</a></strong></font></td>")
+001310                CALL CGI.TEMPLATE.VAR("art.sequenz","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Seq.&nbsp;</strong></font></td>")
+001320                CALL CGI.TEMPLATE.VAR("hilfe",HILFE$)
+001330                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+001340                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+001350                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+001360                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001370                CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_ar_aus_alle.tpl")
+001380                GOTO ENDE
+001390           OTHERWISE 
+001400                PRINT "Hacking attempt!"
+001410                STOP 
+001420           CEND 
+001430 ! ********************* HAUPTPROGRAMM ENDE ***********************
+001440 FEHLER:
+001450      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001460      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001470      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001480      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/fehler.tpl")
+001490 ENDE:
+001500      END \ QUIT 
+001510 REM ------------------------------------------------
+001520 ERROR.ROUT:
+001530      RC$ = FN.WFKIFEHL$("bk_ar_aus_alle",ERR,ERL,CRC$,FL%)
+001540 
+001550 REM *******************************************************
+001560 KOPF: ! Kopfzeile für PDF ausgabe
+001570      SZ% = SZ%+1 ! Seitenzähler
+001580      PRINT #23:"T R Ä G E R A R T I K E L"
+001590      PRINT #23:"ALLE ARTIKEL DES KUNDEN"
+001600      PRINT #23:"Datum: "&DATE$(0);SPACE$(4);"Uhrzeit: "&TIME$(0);SPACE$(10);TAB(120);"Seite: "&STR$(SZ%)
+001610      PRINT #23
+001620      PP% = PP%+1 ! Zeilenzähler
+001630      PRINT #23:"Pos";TAB(6);"Trägername 1";TAB(30);"Trägername 2";TAB(53);"Art-Nr";TAB(60);"Bezeichng";TAB(74);"Barc/Trans";TAB(88);"Angelegt";TAB(97);"Schrank";TAB(105);"Fach";TAB(111);"Gr.";TAB(116);"MS";TAB(119);"WS";TAB(122);"Geb."
+001640      PRINT #23:RPT$(132,"-")
+001650      RETURN 
+001660 REM *******************************************************
+001670 PDF: ! Dateiausgabe PDF
+001680      PP% = PP%+1 ! Zeilenzähler
+001690      PRINT #23:PDFZL$
+001700      IF PP%=36 ! Seitenwechsel/Seitenumbruch
+001710           PRINT #23
+001720           PRINT #23:SPACE$(50);"*** Ü B E R T R A G ***"
+001730           CLEAR PP%
+001740           GOSUB KOPF
+001750           IFEND 
+001760      IF SORTLAUF%=I% ! letzter Lauf -ergo- Fußzeile
+001770           PRINT #23:SPACE$(132)
+001780           PRINT #23:"WS = Waschsequenz | MS = Meldesequenz"
+001790           PRINT #23
+001800           IFEND 
+001810      RETURN 
+001820 REM *******************************************************
+001830 CSV.KOPF: ! CSV Kopf
+001840      FL% = 25 \ PRINT #25:"Alle Tr"&CHR$(228)&"gerartikel eines Kunden" \ PRINT #25 \ PRINT #25 \ CLEAR FL%
+001850      FL% = 25 \ PRINT #25:"Tr"&CHR$(228)&"gername 1;Tr"&CHR$(228)&"gername 2;Artikelnummer;Artikelbezeichnung;Barcode/Transponder;Angelegt;Schrank;Fach;Gr"&CHR$(246)&CHR$(223)&"e;WSeq;MSeq;Geb"&CHR$(228)&"ude" \ CLEAR FL%
+001860      RETURN 
+001870 REM *******************************************************
+001880 CSV: ! CSV Schreiben
+001890      FL% = 25 \ PRINT #25:CSVZL$ \ CLEAR FL%
+001900      RETURN 
+001910 REM *******************************************************
+001920 L21: ! Suchindex Trägerartikel
+001930      FL% = 21 \ READ #21,KY21$:AK21$ \ UNLOCK #21 \ CLEAR FL%
+001940      RETURN 
+001950 REM *******************************************************
+001960 L211: ! Suchindex Trägerartikel
+001970      FL% = 21 \ READNEXT #21,KY21$:AKY21$ \ UNLOCK #21 \ CLEAR FL%
+001980      RETURN 
+001990 REM *******************************************************
+002000 L20: ! Trägerstamm TRAE01.REI
+002010      FL% = 20 \ READ #20,KY20$:AKY20$,TRKD,TRAR,TR61$,TR62$,TR63$,TR64$,TR65$,TR66$,TR67,TR68$,TR71$,TR72$,TR73$,TR74,TR75$,TR76$,TR77$,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91$,TR92,TR93,TR94%,TR95%,TR96%,TR97%,XX1$,XX2$,TR100$,TR101$,TR102$,TR103$,TR104$,TR105,TR106% \ UNLOCK #20 \ CLEAR FL%
+002020      RETURN 
+002030 REM *******************************************************
+002040 L201: ! Trägerstamm TRAE01.REI
+002050      FL% = 20 \ READNEXT #20,KY20$:AKY20$,TRKD,TRAR,TR61$,TR62$,TR63$,TR64$,TR65$,TR66$,TR67,TR68$,TR71$,TR72$,TR73$,TR74,TR75$,TR76$,TR77$,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91$,TR92,TR93,TR94%,TR95%,TR96%,TR97%,XX1$,XX2$,TR100$,TR101$,TR102$,TR103$,TR104$,TR105,TR106% \ UNLOCK #20 \ CLEAR FL%
+002060      RETURN 
+002070 REM *******************************************************
+002080 L24: ! Artikelstamm lesen
+002090      FL% = 24 \ READ #24,KY24$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$ \ CLEAR FL% \ UNLOCK #24
+002100      RETURN 

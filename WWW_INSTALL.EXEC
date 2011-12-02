@@ -1,0 +1,35 @@
+;
+; EXEC um Dateien fr das KISS Portal vorzubereiten
+; 11.06.08 - Stephan Schmidt (EXEC Erstellung)
+;
+start:
+&control off
+;Meninhalt
+&menu
+Auswahl
+>>  alte Dateien lschen <<
+>>  alte Dateien leeren  <<
+>>  neue Dateien anlegen <<
+>>         Ende          <<
+&end
+; Auswahl
+&if &menuix=1
+er /kiss/session.kiss
+er /kiss/zugriff.kiss
+er /kiss/kustwa.kiss
+er /kiss/fistam.kiss
+er /kiss/fehler.kiss
+er /kiss/pscode.kiss
+er /kiss/export/bewoexp.kiss
+&elseif &menuix=2
+cr /kiss/session.kiss (i file 1000 recl 200 keyl 50
+cr /kiss/zugriff.kiss (i file 100000 recl 100 keyl 20
+cr /kiss/kustwa.kiss (i file 500 recl 500 keyl 10
+cr /kiss/fistam.kiss (i file 500 recl 100 keyl 20
+cr /kiss/fehler.kiss (i file 1000 recl 150 keyl 20
+cr /kiss/pscode.kiss (i file 500 recl 100 keyl 10
+cr /kiss/export/bewoexp.kiss (i file 300 recl 400 keyl 20
+&else
+&crt clear
+&quit
+&endif

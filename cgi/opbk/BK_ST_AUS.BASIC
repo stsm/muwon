@@ -1,0 +1,86 @@
+000010 REM Programm zur Anzeige der bewo_st_aus.tpl Datei
+000020 REM 17.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000100 
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000170      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000180      CALL CGI.GET("methode",ADDROF(METHODE$)) ! Bewo.-nr / Bewo.-name
+000190      CALL CGI.GET("namen",ADDROF(GTRAENA$)) ! gesucht über Namenliste
+000200      CALL CGI.GET("nummer",ADDROF(GTRAENR$)) ! gesucht über Nummernliste
+000210 REM *******************************************************
+000220 REM ************ Session prüfen ***************
+000230      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000240      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000250 REM *******************************************
+000260 
+000270      SELECT AKTION$
+000280           CASE "list"
+000290                IF METHODE$="nummer" THEN EINGABE$ = GTRAENR$ ! übernahme
+000300                IF METHODE$="namen" THEN EINGABE$ = GTRAENA$ ! Übernahme
+000310                IF VAL(EINGABE$)<=0 THEN GOTO FEHLER
+000320                IF VAL(EINGABE$)>0
+000330                     FL% = 11 \ OPEN #11:"/TRAE10.REI", INPUT INDEXED ! Wäschesack
+000340                     KY11$ = "1"&FKDNR$&FORMAT$(VAL(EINGABE$),"999999")
+000350                     GOSUB L11 ! Träger lesen
+000360                     IF EOF(11) THEN GOTO FEHLER
+000370                     THEMA$ = "Stammdaten des ausgew&auml;hlten Tr&auml;gers"
+000380                     CALL CGI.TEMPLATE.VAR("trae.nr",STR$(TRASNR))
+000390                     CALL CGI.TEMPLATE.VAR("trae.na",TRASBE$)
+000400                     CALL CGI.TEMPLATE.VAR("trae.su",TRASSW$)
+000410                     CALL CGI.TEMPLATE.VAR("trae.kost",TRASP1$)
+000420                     CALL CGI.TEMPLATE.VAR("trae.sperr",STR$(TRAS1%)&TRAE.SP.TXT$)
+000430                     CALL CGI.TEMPLATE.VAR("trae.schrank",TRASP12$)
+000440                     CALL CGI.TEMPLATE.VAR("trae.fach",STR$(TRASP13))
+000450                     CALL CGI.TEMPLATE.VAR("trae.gr",TRASP14$)
+000460                     CALL CGI.TEMPLATE.VAR("trae.ang",TRASP15$)
+000470                     CALL CGI.TEMPLATE.VAR("trae.gr",TRASP14$)
+000480                     IFEND 
+000490                CALL CGI.TEMPLATE.VAR("umbr",UMBR$)
+000500                CALL CGI.TEMPLATE.VAR("thema",THEMA$)
+000510                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000520                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000530                CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_st_aus.tpl")
+000540                GOTO ENDE
+000550           CASE "print"
+000560                PRINT "Hier kommt demnaechst der Druck"
+000570                GOTO ENDE
+000580           OTHERWISE 
+000590                PRINT "Hacking attempt!"
+000600                STOP 
+000610           CEND 
+000620 FEHLER:
+000630      MSG$(1) = "<li>Der Tr&auml;ger wurde nicht gefunden!</li>"
+000640      MSG$(2) = "<li>Die Eingabe der Tr&auml;gernummer ist kleiner oder gleich Null!</li>"
+000650      MSG$(3) = "<li>Die Eingabe der Tr&auml;gernummer ist nicht numerisch!</li>"
+000660      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000670      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000680      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+000690      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/fehler.tpl")
+000700 ENDE:
+000710      END \ QUIT 
+000720 REM ------------------------------------------------
+000730 ERROR.ROUT:
+000740      RC$ = FN.WFKIFEHL$("bk_st_aus",ERR,ERL,CRC$,FL%)
+000750 REM ------------------------------------------------------
+000760 L11: ! Trägerstamm lesen
+000770      FL% = 11 \ READ #11,KY11$:TRAS1%,TRAS2%,TRASFR%,TRKNR,TRASNR,TRASBE$,TRASSW$,TRASP1$,TRASP2$,TRASP3$,TRASP4$,TRASP5,TRASP6,TRASP7%,TRASP8%,TEMP$,TEMP$,TEMP,TRASP12$,TRASP13,TRASP14$,TRASP15$,TRASP16$ \ UNLOCK #11 \ CLEAR FL%
+000780      IF TRAS1%=1 ! Sperrtext
+000790           TRAE.SP.TXT$ = " - ja"
+000800      ELSE 
+000810           TRAE.SP.TXT$ = " - nein"
+000820           IFEND 
+000830      IF TRASP15$<>""
+000840           TRASP15$ = TRASP15$[1:2]&"."&TRASP15$[3:4]&"."&TRASP15$[5:6]
+000850           IFEND 
+000860      RETURN 

@@ -1,0 +1,46 @@
+000010 REM Programm zur Anzeige der kontakt_version.tpl Datei
+000020 REM 29.12.2007 - Schmidt (Programmerstellung)
+000030 REM 22.05.2008 - Schmidt (Fehlerbehandlung)
+000040 REM 22.08.2008 - Schmidt (löschen der temp Datei)
+000050 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000060 
+000070      INCLUDE "CGI" ! Common Gateway Interface
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000110 
+000120      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000130 
+000140      ON ERROR GOTO ERROR.ROUT
+000150 
+000160 REM *******************************************************
+000170      CALL CGI.INIT
+000180      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000190      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Passwort übernehmen
+000210 REM *******************************************************
+000220 REM ************ Session prüfen ***************
+000230      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000240      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000250 REM *******************************************
+000260 
+000270      FONTA$ = "<font face=""verdana"" size=""2"">"
+000280      FONTE$ = "</font>"
+000290      SYSTEM "f /wwwroot/cgi/opa/*.command (ver > version.temp:m"
+000300      FL% = 10 \ OPEN #10:"version.temp:m", INPUT SEQUENTIAL 
+000310      WHILE NOT EOF(10)
+000320           LINPUT #10:ZEILE$
+000330           I% = I%+1
+000340           CALL CGI.TEMPLATE.VAR("version.inhalt"&STR$(I%),"<tr><td>"&FONTA$&ZEILE$[1:30]&FONTE$&"</td><td>"&FONTA$&ZEILE$[31:40]&FONTE$&"</td><td align=""center"">"&FONTA$&ZEILE$[50:55]&FONTE$&"</td></tr>")
+000350           WEND 
+000360      SYSTEM "er version.temp:m (not noq"
+000370      CALL CGI.TEMPLATE.VAR("theos",SYS.ENV$(10))
+000380      CALL CGI.TEMPLATE.VAR("tsn",SYS.ENV$(11))
+000390      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000400      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000410      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/kontakt_version.tpl")
+000420 ENDE:
+000430      END \ QUIT 
+000440 REM ------------------------------------------------
+000450 ERROR.ROUT:
+000460      RC$ = FN.WFKIFEHL$("kontakt_version",ERR,ERL,CRC$,FL%)

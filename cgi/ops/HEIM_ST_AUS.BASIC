@@ -1,0 +1,85 @@
+000010 REM Programm zur Anzeige der heim_st_aus.tpl Datei
+000020 REM Kundestammanzeige
+000030 REM 05.01.2009 - Schmidt (Programmerstellung)
+000040 
+000050      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000060      INCLUDE "WFALLGEM.INC" ! allgemeine Routinen
+000070      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000080      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000090      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000190      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000210 REM *******************************************************
+000220 REM ************ Session prüfen ***************
+000230      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000240 REM *******************************************
+000250 
+000260      UMBR$ = "<br />" ! Zeilenumbruch
+000270      FONTA$ = "<font face=""verdana"" size=""2"">"
+000280      FONTE$ = "</font>"
+000290      SELECT AKTION$
+000300           CASE "list"
+000310                IF VAL(KDNR$)<=0 THEN GOTO FEHLER
+000320                FL% = 3 \ OPEN #3:"/KUSTWA.REI", INPUT INDEXED ! Kundestamm
+000330                KY3$ = "1"&FORMAT$(VAL(KDNR$),"999999")
+000340                GOSUB L3 ! Kundenstamm lesen
+000350                IF EOF(3) THEN GOTO FEHLER
+000360                THEMA$ = "Stammdaten des ausgewählten Kunden"
+000370                CALL UMLAUTE.ZU.HTML(KA1$)
+000380                CALL CGI.TEMPLATE.VAR("kd.name1",HTML.CODE$)
+000390                CALL UMLAUTE.ZU.HTML(KA2$)
+000400                CALL CGI.TEMPLATE.VAR("kd.name2",HTML.CODE$)
+000410                CALL UMLAUTE.ZU.HTML(KT$[169:193])
+000420                CALL CGI.TEMPLATE.VAR("kd.name3",HTML.CODE$)
+000430                CALL UMLAUTE.ZU.HTML(KST$)
+000440                CALL CGI.TEMPLATE.VAR("kd.stra",HTML.CODE$)
+000450                CALL CGI.TEMPLATE.VAR("kd.plz",STR$(KPL))
+000460                CALL UMLAUTE.ZU.HTML(KOR$)
+000470                CALL CGI.TEMPLATE.VAR("kd.ort",HTML.CODE$)
+000480                CALL CGI.TEMPLATE.VAR("kd.tel",KL$)
+000490                CALL CGI.TEMPLATE.VAR("kd.fax",KT$[194:208])
+000500                CALL UMLAUTE.ZU.HTML(KT$[281:305])
+000510                CALL CGI.TEMPLATE.VAR("kd.kontakt",HTML.CODE$)
+000520                CALL CGI.TEMPLATE.VAR("kd.mail",KT$[457:496])
+000530                CALL CGI.TEMPLATE.VAR("kd.ustid",KT$[383:402])
+000540                CALL CGI.TEMPLATE.VAR("kd.abrg",KT$[162:165])
+000550                CALL CGI.TEMPLATE.VAR("kd.nr",FORMAT$(VAL(KDNR$),"######"))
+000560 
+000570                CALL CGI.TEMPLATE.VAR("umbr",UMBR$)
+000580                CALL CGI.TEMPLATE.VAR("thema",THEMA$)
+000590                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000600                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000610                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000620                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/heim_st_aus.tpl")
+000630                GOTO ENDE
+000640           OTHERWISE 
+000650                PRINT "Hacking attempt!"
+000660                STOP 
+000670           CEND 
+000680 FEHLER:
+000690      MSG$(1) = "<li>Der Kunde wurde nicht gefunden!</li>"
+000700      MSG$(2) = "<li>Die Eingabe der Kundennummer ist kleiner oder gleich Null!</li>"
+000710      MSG$(3) = "<li>Die Eingabe der Kundennummer ist nicht numerisch!</li>"
+000720      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000730      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000740      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+000750      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+000760 ENDE:
+000770      END \ QUIT 
+000780 REM ------------------------------------------------
+000790 ERROR.ROUT:
+000800      RC$ = FN.WFKIFEHL$("heim_st_aus",ERR,ERL,CRC$,FL%)
+000810 REM ------------------------------------------------------
+000820 L3: ! Kundenstamm lesen
+000830      READ #3,KY3$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX$,XX$,X%
+000840      UNLOCK #3
+000850      RETURN 

@@ -1,0 +1,94 @@
+000010 REM Programm zur Anzeige der bk_be_idx.tpl Datei
+000020 REM 30.04.2009 - Schmidt (Programmerstellung)
+000030 REM 16.06.2009 - Schmidt (unnötigen Code entfernt)
+000040 
+000050      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFBKTRAE.INC" ! Trägerauswahl
+000080      INCLUDE "WFBKTRAR.INC" ! Trägerartikelvorschlag
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000110      INCLUDE "WFZUGANG.INC" ! Zuganskontrolle
+000120 
+000130      OPTION VERSION 1.0.02,"Mittermeier & Ungelenk GmbH"
+000140 
+000150      ON ERROR GOTO ERROR.ROUT
+000160 
+000170      DIM MENGE$(100)
+000180 
+000190 REM *******************************************************
+000200      CALL CGI.INIT
+000210      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000220      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000230      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000240 REM *******************************************************
+000250 
+000260 REM ************ Session prüfen ***************
+000270      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000280      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000290 REM ************ Zugang prüfen ***************
+000300      RC$ = FN.WFZUGANG$("bk_be",FKDNR$)
+000310 REM *******************************************
+000320 
+000330 
+000340      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000350      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000360      SELECT AKTION$
+000370           CASE "start"
+000380                THEMA1$ = "Tr&auml;gerartikelbestellung <br />"
+000390                THEMA2$ = "W&auml;hlen Sie einen Tr&auml;ger und die zu bestllenden Artikel <br />"
+000400                FORMSTART$ = "<form action=""/cgi.opbk/bk_be"" method=""post"">"
+000410                SELECT.NAMEN$ = FN.FORM.SELECT$("namen",1)
+000420                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000430                SELECT.ARTIKEL$ = FN.FORM.SELECT$("artikel",1)
+000440                PARA1$ = FN.FORM.HIDDEN$("aktion","bestellen")
+000450                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000460                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000470                BUTTON$ = FN.FORM.BUTTON$("Aktion","Bestellen")
+000480                FORMENDE$ = "</form>"
+000490           REM -------- TRÄGER LESEN ANFANG ---------
+000500                RC$ = FNWFBKTRAE$(FKDNR$)
+000510           REM -------- TRÄGER LESEN ENDE ---------
+000520           REM -------- TRÄGERARTIKELVORSCHALG LESEN ANFANG ---------
+000530                RC$ = FNWFBKTRAR$(FKDNR$)
+000540                IF VAL(RC$)<=0 ! keine Artikelvorschläge angelegt
+000550                     MSG$(1) = "Es wurden keine Artikelvorschl&auml;ge hinterlegt! <br /> Eine Bestellung ohne Artikelvorschl&auml;ge ist nicht m&ouml;glich."
+000560                     MSG$(2) = "<br /><br />"
+000570                     MSG$(3) = "Melden Sie dies der W&auml;scherei.<br /><br />"
+000580                     CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000590                     CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000600                     CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+000610                     CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/fehler.tpl")
+000620                     GOTO ENDE
+000630                     IFEND 
+000640           REM -------- TRÄGERARTIKELVORSCHALG LESEN ENDE ---------
+000650                FOR I% = 1 TO 99 ! Mengen DropDown aufbauen
+000660                     MENGE$(I%) = FN.FORM.SELECT.OPTION$(STR$(I%),0,STR$(I%))
+000670                     CALL CGI.TEMPLATE.VAR("selbox.menge"&STR$(I%),MENGE$(I%))
+000680                     NEXT I%
+000690                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000700                CALL CGI.TEMPLATE.VAR("select.namen",SELECT.NAMEN$)
+000710                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000720                CALL CGI.TEMPLATE.VAR("select.artikel",SELECT.ARTIKEL$)
+000730                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000740                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000750                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000760                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000770                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000780                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000790                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000800                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000810                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000820                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000830                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000840                CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_be_idx.tpl")
+000850                GOTO ENDE
+000860           OTHERWISE 
+000870                PRINT "Hacking attempt!"
+000880                STOP 
+000890           CEND 
+000900 ENDE:
+000910      END \ QUIT 
+000920 REM ------------------------------------------------
+000930 ERROR.ROUT:
+000940      RC$ = FN.WFKIFEHL$("bk_be_idx",ERR,ERL,CRC$,FL%)

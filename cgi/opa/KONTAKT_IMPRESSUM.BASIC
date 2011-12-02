@@ -1,0 +1,43 @@
+000010 REM Programm zur Anzeige der kontakt_impressum.tpl Datei
+000020 REM 03.12.2007 - Schmidt (Programmerstellung()
+000030 REM 22.05.2008 - Schmidt (Fehlerbehanldung)
+000040 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000050 
+000060      INCLUDE "CGI" ! Common Gateway Interface
+000070      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000080      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000090      INCLUDE "WFSESSION.INC" ! Sessiomanagement
+000100 
+000110      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Passwort übernehmen
+000200 REM *******************************************************
+000210 REM ************ Session prüfen ***************
+000220      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000230      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000240 REM *******************************************
+000250 
+000260      FL% = 1 \ OPEN #1:"/FISTAM.REI", INPUT INDEXED ! Firmenstamm
+000270      READ #1,"101":XX$,NAME1$,NAME2$,STRASSE$,XX$,PLZ$,ORT$,TEL$,FAX$ \ UNLOCK #1
+000280      CLOSE #1
+000290      CALL CGI.TEMPLATE.VAR("name1",NAME1$)
+000300      CALL CGI.TEMPLATE.VAR("name2",NAME2$)
+000310      CALL CGI.TEMPLATE.VAR("strasse",STRASSE$)
+000320      CALL CGI.TEMPLATE.VAR("plz",PLZ$)
+000330      CALL CGI.TEMPLATE.VAR("ort",ORT$)
+000340      CALL CGI.TEMPLATE.VAR("tel",TEL$)
+000350      CALL CGI.TEMPLATE.VAR("fax",FAX$)
+000360      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000370      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000380      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/kontakt_impressum.tpl")
+000390 ENDE:
+000400      END \ QUIT 
+000410 REM ------------------------------------------------
+000420 ERROR.ROUT:
+000430      RC$ = FN.WFKIFEHL$("kontakt_impressum",ERR,ERL,CRC$,FL%)

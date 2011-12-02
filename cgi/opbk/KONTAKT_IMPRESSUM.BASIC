@@ -1,0 +1,40 @@
+000010 REM Programm zur Anzeige der kontakt_impressum.tpl Datei
+000020 REM 02.04.2009 - Schmidt (Programmerstellung()
+000030 
+000040      INCLUDE "CGI" ! Common Gateway Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessiomanagement
+000080 
+000090      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000100 
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000170 REM *******************************************************
+000180 REM ************ Session prüfen ***************
+000190      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000200      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000210 REM *******************************************
+000220 
+000230      FL% = 1 \ OPEN #1:"/FISTAM.REI", INPUT INDEXED ! Firmenstamm
+000240      READ #1,"101":XX$,NAME1$,NAME2$,STRASSE$,XX$,PLZ$,ORT$,TEL$,FAX$ \ UNLOCK #1
+000250      CLOSE #1
+000260      CALL CGI.TEMPLATE.VAR("name1",NAME1$)
+000270      CALL CGI.TEMPLATE.VAR("name2",NAME2$)
+000280      CALL CGI.TEMPLATE.VAR("strasse",STRASSE$)
+000290      CALL CGI.TEMPLATE.VAR("plz",PLZ$)
+000300      CALL CGI.TEMPLATE.VAR("ort",ORT$)
+000310      CALL CGI.TEMPLATE.VAR("tel",TEL$)
+000320      CALL CGI.TEMPLATE.VAR("fax",FAX$)
+000330      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000340      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000350      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/kontakt_impressum.tpl")
+000360 ENDE:
+000370      END \ QUIT 
+000380 REM ------------------------------------------------
+000390 ERROR.ROUT:
+000400      RC$ = FN.WFKIFEHL$("kontakt_impressum",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,209 @@
+000010 REM Programm zur Anzeige der bewo_la_aus.tpl Datei
+000020 REM Ausgabe "letzte eingegangene Artikel"
+000030 REM Programmer: Stephan Schmidt
+000040 REM 28.05.2008 Schmidt - Programmerstellung
+000050 REM 29.10.2008 Schmidt - Suchname
+000060 REM 14.11.2008 Schmidt (Umbau auf "OPA" - Version 2)
+000070 
+000080 REM *******************************************************
+000090      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000100      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000110      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000120      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000130 
+000140      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000150 
+000160      ON ERROR GOTO ERROR.ROUT
+000170 
+000180 REM *******************************************************
+000190      CALL CGI.INIT
+000200      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000210      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000220      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000230      CALL CGI.GET("methode",ADDROF(METHODE$)) ! BewohnernNr/Namenliste
+000240      CALL CGI.GET("namen",ADDROF(GBEWONA$)) ! Bewohnernummer
+000250      CALL CGI.GET("nummer",ADDROF(GBEWONR$)) ! Bewohnernummer
+000260      CALL CGI.GET("suchna",ADDROF(GBEWOSU$)) ! Suchname
+000270      CALL CGI.GET("gef.bewo",ADDROF(MAXBEWO$)) ! Anzahl der gef. Bewo.
+000280      CALL CGI.GET("sort",ADDROF(SORT$)) ! Sortierungsparameter
+000290 REM *******************************************************
+000300 REM ************ Session prüfen ***************
+000310      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000320      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000330 REM *******************************************
+000340 
+000350      DIM LFNR$(100),ARTBEZ$(100),BARCODE$(100),DATEIN$(100)
+000360      DIM SORT%(100),ARTNR(100)
+000370 
+000380 REM *******************************************************
+000390      IF METHODE$="namen" THEN EINGABE$ = GBEWONA$ ! ggf Übernahme
+000400      IF METHODE$="nummer" THEN EINGABE$ = GBEWONR$ ! ggf. Übernahme
+000410      IF METHODE$="suchna" THEN EINGABE$ = GBEWOSU$ ! ggf. Übernahme
+000420      FONT$ = "<font color=""#000000"" face=""verdana"" size=""2"">" ! Schriftart
+000430      FORMA.SORT$ = "<form action=""/cgi.opa/bewo_la_aus"" method=""post"">"
+000440      SELECT.SORT$ = FN.FORM.SELECT$("sort",1)
+000450      SELECT.SORT.INHALT$(1) = FN.FORM.SELECT.OPTION$("1",0,"Artikelnummer")
+000460      SELECT.SORT.INHALT$(2) = FN.FORM.SELECT.OPTION$("2",0,"Bezeichnung")
+000470      SELECT.SORT.INHALT$(3) = FN.FORM.SELECT.OPTION$("3",0,"Barcode")
+000480      SELECT.SORT.INHALT$(4) = FN.FORM.SELECT.OPTION$("4",0,"Eingang")
+000490      BUTTON.SORT$ = FN.FORM.BUTTON$("sort","Sortieren")
+000500      FORME.SORT$ = "</form>"
+000510      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000520      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000530      PARA3$ = FN.FORM.HIDDEN$("sort",SORT$)
+000540      PARA4$ = FN.FORM.HIDDEN$("nummer",EINGABE$)
+000550      PARA5$ = FN.FORM.HIDDEN$("methode","nummer")
+000560      PARA6$ = FN.FORM.HIDDEN$("sid",SID$)
+000570      SELECT AKTION$
+000580           CASE "list"
+000590                IF VAL(EINGABE$)<=0
+000600                     MSG$(1) = "<li>Die Bewohnernummer darf nicht kleiner/gleich Null sein!</li>"
+000610                     GOTO FEHLER
+000620                     IFEND 
+000630                FL% = 21 \ OPEN #21:"/BEWO21.REI", INPUT INDEXED 
+000640                FL% = 22 \ OPEN #22:"/BEWO22.REI", INPUT INDEXED 
+000650                FL% = 23 \ OPEN #23:"/WWWROOT/TEMP/"&SID$, OUTPUT SEQUENTIAL ! Ausgabedatei für PDF
+000660                KY22$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+000670                GOSUB L22 ! Leseanfang BEWO22.REI
+000680                GOSUB L221 ! nächsten Satz BEWO22.REI
+000690                IF EOF(22) OR KY22$[2:7]<>FORMAT$(VAL(KDNR$),"999999") OR KY22$[8:13]<>FORMAT$(VAL(EINGABE$),"999999") THEN GOTO 780 ! zweiter Durchlauf
+000700                KY21$ = "1"&KY22$[20:31]
+000710                GOSUB L21 ! Barcodebewohnerartikel BEWO21.REI
+000720                IF EOF(21) THEN GOTO 680 ! nächsten Satz BEWO22
+000730                TR54$ = TR54$[1:2]&"-"&TR54$[3:4]&"-20"&TR54$[5:6]
+000740                IF LEIN<DAY(TR54$) THEN LEIN = DAY(TR54$)
+000750                GOTO 680 ! nächster Satz BEWO22
+000760                CLEAR TR54$
+000770 
+000780                KY22$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+000790                GOSUB L22 ! Leseanfang BEWO22.REI
+000800                GOSUB L221 ! nächsten SAtz BEWO22.REI
+000810                IF EOF(22) OR KY22$[2:7]<>FORMAT$(VAL(KDNR$),"999999") OR KY22$[8:13]<>FORMAT$(VAL(EINGABE$),"999999") THEN GOTO 1000 ! Seite generieren
+000820                KY21$ = "1"&KY22$[20:31]
+000830                GOSUB L21      ! Barcodebewohnerartikel BEWO21.REI
+000840                TR54$ = TR54$[1:2]&"-"&TR54$[3:4]&"-20"&TR54$[5:6]
+000850                IF DAY(TR54$)<LEIN THEN GOTO 800
+000860                I% = I%+1
+000870                LFNR$(I%) = STR$(I%)
+000880                ARTBEZ$(I%) = TR64$
+000890                ARTNR(I%) = TRAR
+000900                BARCODE$(I%) = AKY21$[2:13]
+000910                DATEIN$(I%) = STR$(DAY(TR54$))
+000920                IF PDF.KOPF.MERKER%=0      ! Kopf das erste mal schreiben
+000930                     GOSUB KOPF
+000940                     PDF.KOPF.MERKER% = 1
+000950                     IFEND 
+000960                GOTO 800 ! nächster satz BEWO22
+000970 
+000980 ! *********** ABSCHLIESSENDE AKTIONEN VOR SEITENGENERIERUNG ***********
+000990 
+001000                IF I%=0 ! prüfen ob Bewohner Teile hat
+001010                     MSG$(1) = "<li>Es wurden keine W&auml;scheteile f&uuml;r den Bewohner gefunden!</li>"
+001020                     GOTO FEHLER
+001030                     IFEND 
+001040                SELECT SORT$
+001050                     CASE "1" ! nach Artikelnummer sort.
+001060                          MAT SORT% = SORT(ARTNR)
+001070                     CASE "2" ! nach Bezeichnung sort.
+001080                          MAT SORT% = SORT(ARTBEZ$)
+001090                     CASE "3" ! nach Barcode sort.
+001100                          MAT SORT% = SORT(BARCODE$)
+001110                     CASE "4" ! nach Datum "Eingang" sort.
+001120                          MAT SORT% = SORT(DATEIN$)
+001130                     OTHERWISE 
+001140                          PRINT "Jo - hier stimmt wat nich" \ STOP 
+001150                     CEND 
+001160                FOR SORTLAUF% = 1 TO 100 ! Sortierungslauf  [SORT%(100)]
+001170                     IF STR$(ARTNR(SORT%(SORTLAUF%)))<>"0" ! alle 0 Felder nicht ausgeben
+001180                          IF VAL(DATEIN$(SORT%(SORTLAUF%)))<=0 THEN DATEIN$(SORT%(SORTLAUF%)) = "999999"
+001190                          HVAR% = HVAR%+1 ! Hilfsvariable für neue Pos.-nummer
+001200                          CALL CGI.TEMPLATE.VAR("bewo.art"&STR$(HVAR%),"<tr><td align=""center"">"&FONT$&LFNR$(HVAR%)&"</td><td align=""center"">"&FONT$&STR$(ARTNR(SORT%(SORTLAUF%)))&"</td><td align=""left"">"&FONT$&ARTBEZ$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&BARCODE$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&DATE$(VAL(DATEIN$(SORT%(SORTLAUF%))))&"</td></tr>")
+001210                          PDFZL$ = SPACE$(132)
+001220                          PDFZL$[1:3] = LFNR$(HVAR%)
+001230                          PDFZL$[5:10] = STR$(ARTNR(SORT%(SORTLAUF%)))
+001240                          PDFZL$[13:38] = ARTBEZ$(SORT%(SORTLAUF%))
+001250                          PDFZL$[40:52] = BARCODE$(SORT%(SORTLAUF%))
+001260                          PDFZL$[54:61] = DATE$(VAL(DATEIN$(SORT%(SORTLAUF%))))
+001270                          GOSUB PDF ! Zeile in Ausgabedatei für PDF schreiben
+001280                          IFEND 
+001290                     NEXT SORTLAUF%
+001300                CLOSE #23
+001310                SYSTEM "pdf /WWWROOT/TEMP/"&SID$&" > /WWWROOT/TEMP/"&SID$&".PDF (a4 landscape cols 132"
+001320                SYSTEM "er /WWWROOT/TEMP/"&SID$&" (noq" ! PDF-Arbeitsdatei löschen
+001330                PDFDOWN$ = "/temp/"&SID$&".PDF"
+001340                BEWONAME$ = TR63$
+001350                MAXTEILE% = I%
+001360                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001370                CALL CGI.TEMPLATE.VAR("pdf.down",PDFDOWN$)
+001380                CALL CGI.TEMPLATE.VAR("bewo.name",BEWONAME$)
+001390                CALL CGI.TEMPLATE.VAR("art.ges",STR$(MAXTEILE%))
+001400                CALL CGI.TEMPLATE.VAR("bewo.nr",FORMAT$(VAL(EINGABE$),"999999"))
+001410                CALL CGI.TEMPLATE.VAR("forma.sort",FORMA.SORT$)
+001420                CALL CGI.TEMPLATE.VAR("select.sort",SELECT.SORT$)
+001430                CALL CGI.TEMPLATE.VAR("select.sort.inhalt1",SELECT.SORT.INHALT$(1))
+001440                CALL CGI.TEMPLATE.VAR("select.sort.inhalt2",SELECT.SORT.INHALT$(2))
+001450                CALL CGI.TEMPLATE.VAR("select.sort.inhalt3",SELECT.SORT.INHALT$(3))
+001460                CALL CGI.TEMPLATE.VAR("select.sort.inhalt4",SELECT.SORT.INHALT$(4))
+001470                CALL CGI.TEMPLATE.VAR("button.sort",BUTTON.SORT$)
+001480                CALL CGI.TEMPLATE.VAR("forme.sort",FORME.SORT$)
+001490                CALL CGI.TEMPLATE.VAR("hilfe",HILFE$)
+001500                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+001510                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+001520                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+001530                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+001540                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+001550                CALL CGI.TEMPLATE.VAR("para6",PARA6$)
+001560                RC$ = FN.WFFOOTER$(NIX$)
+001570                CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_la_aus.tpl")
+001580                GOTO ENDE
+001590           OTHERWISE 
+001600                PRINT "Hacking attempt!"
+001610                STOP 
+001620           CEND 
+001630 ! ********************* HAUPTPROGRAMM ENDE ***********************
+001640 FEHLER:
+001650      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001660      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001670      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001680      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+001690 ENDE:
+001700      END \ QUIT 
+001710 REM ------------------------------------------------
+001720 ERROR.ROUT:
+001730      RC$ = FN.WFKIFEHL$("bewo_la_aus",ERR,ERL,CRC$,FL%)
+001740 
+001750 REM *******************************************************
+001760 KOPF: ! Kopfzeile für PDF ausgabe
+001770      SZ% = SZ%+1 ! Seitenzähler
+001780      PRINT #23:"L E T Z T E  E I N G E G A N G E N E  A R T I K E L"
+001790      PRINT #23:"Bewohnername: "&TRIM$(TR63$);SPACE$(4);"Datum: "&DATE$(0);SPACE$(4);"Uhrzeit: "&TIME$(0);SPACE$(10)&"Seite: "&STR$(SZ%)
+001800      PRINT #23
+001810      PP% = PP%+1 ! Zeilenzähler
+001820      PRINT #23:"Pos";TAB(5);"Art-Nr.";TAB(13);"Artikelbezeichnung";TAB(40);"Barcode";TAB(54);"Eingang"
+001830      PRINT #23:RPT$(132,"-")
+001840      RETURN 
+001850 REM *******************************************************
+001860 PDF: ! Dateiausgabe PDF
+001870      PP% = PP%+1 ! Zeilenzähler
+001880      PRINT #23:PDFZL$
+001890      IF PP%=38 ! Seitenwechsel/Seitenumbruch
+001900           PRINT #23:SPACE$(50);"*** Ü B E R T R A G ***"
+001910           CLEAR PP%
+001920           GOSUB KOPF
+001930           IFEND 
+001940      IF SORTLAUF%=100 ! letzter Lauf -ergo- Fußzeile
+001950           PRINT #23:SPACE$(132)
+001960           PRINT #23:LEGENDE.PDF$
+001970           PRINT #23
+001980           IFEND 
+001990      RETURN 
+002000 REM *******************************************************
+002010 L21: ! Barcode Bewohnerartikel BEWO21.REI
+002020      FL% = 21 \ READ #21,KY21$:AKY21$,TRKD,TRAR,TRBEWO,TR61$,TR62$,TR63$,TR64$,TR65$,TR66,TR67,TR68$,TR71,TR72$,TR73$,TR74%,TR75%,TR76%,TR77,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91,TR92,TR93,TR94%,TR95%,TR96%,TR97%,XX1$,XX2$ \ UNLOCK #21 \ CLEAR FL%
+002030      RETURN 
+002040 L22: ! Index Bewohnerartikel BEWO22.REI
+002050      FL% = 22 \ READ #22,KY22$:AKY22$,XX1$,XX2$ \ UNLOCK #22 \ CLEAR FL%
+002060      RETURN 
+002070 L221:
+002080      FL% = 22 \ READNEXT #22,KY22$:AKY22$,XX1$,XX2$ \ UNLOCK #22 \ CLEAR FL%
+002090      RETURN 

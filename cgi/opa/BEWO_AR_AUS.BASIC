@@ -1,0 +1,287 @@
+000010 REM Programm zur Anzeige der bewo_ar_aus.tpl Datei
+000020 REM Bewohner-Artikellisten Ausgabe
+000030 REM Programmer: Stephan Schmidt
+000040 REM Datum     : 16.10.2007
+000050 REM 21.02.2008 Schmidt - Fußlegende für Status
+000060 REM 28.03.2008 Schmidt - PDF Kopf angepasst
+000070 REM 16.04.2008 Schmidt - Bew.-art.-liste vollständig/unvollständig
+000080 REM 02.05.2008 Schmidt - Fußlegende PDF angepasst
+000090 REM 14.05.2008 Schmidt - Parameter für gesperrte Artikel
+000100 REM 14.05.2008 Schmidt - Parameter für Artikel ohne Ausgang
+000110 REM 22.05.2008 Schmidt - Fehlerbehandlung
+000120 REM 27.05.2008 Schmidt - Hilfe angepasst nach BARV%
+000130 REM 20.06.2008 Schmidt - für "kleine" Liste auch Sequenz
+000140 REM 29.10.2008 Schmidt - Suchname
+000150 REM 14.11.2008 Schmidt - Umbau auf "OPA" Version 2
+000160 
+000170 REM *******************************************************
+000180      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000190      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000200      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000210      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000220 
+000230      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000240 
+000250      ON ERROR GOTO ERROR.ROUT
+000260 
+000270 REM *******************************************************
+000280      CALL CGI.INIT
+000290      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000300      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000310      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000320      CALL CGI.GET("methode",ADDROF(METHODE$)) ! BewohnernNr/Namenliste
+000330      CALL CGI.GET("namen",ADDROF(GBEWONA$)) ! Bewohnernummer
+000340      CALL CGI.GET("nummer",ADDROF(GBEWONR$)) ! Bewohnernummer
+000350      CALL CGI.GET("suchna",ADDROF(GBEWOSU$)) ! Bewohnersuchname
+000360      CALL CGI.GET("gef.bewo",ADDROF(MAXBEWO$)) ! Anzahl der gef. Bewo.
+000370      CALL CGI.GET("sort",ADDROF(SORT$)) ! Sortierungsparameter
+000380      CALL CGI.GET("suchbox",ADDROF(SUCHBOX$)) ! Suchbox aktiviert?
+000390      CALL CGI.GET("suchfeld",ADDROF(SUCHFELD$)) ! Inhalt des Suchfeldes
+000400      CALL CGI.GET("artikelbox",ADDROF(ARTIKELBOX$)) ! Art.-box aktivi ?
+000410      CALL CGI.GET("artikel",ADDROF(ARTIKEL$)) ! Inhalt des Artikelfeldes
+000420 REM *******************************************************
+000430 REM ************ Session prüfen ***************
+000440      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000450      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000460 REM *******************************************
+000470 
+000480      DIM LFNR$(1000),ARTBEZ$(1000),BARCODE$(1000),DATBEG$(1000)
+000490      DIM DATEIN$(1000),DATAUS$(1000)
+000500      DIM SORT%(1000),ARTNR(1000),STATUS%(1000),WASEQ%(1000)
+000510 
+000520 REM *******************************************************
+000530      IF METHODE$="namen" THEN EINGABE$ = GBEWONA$ ! ggf Übernahme
+000540      IF METHODE$="nummer" THEN EINGABE$ = GBEWONR$ ! ggf. Übernahme
+000550      IF METHODE$="suchna" THEN EINGABE$ = GBEWOSU$ ! ggf. Übernahme
+000560      FONT$ = "<font color=""#000000"" face=""verdana"" size=""2"">" ! Schriftart
+000570      FL% = 1 \ OPEN #1:"/WWWROOT/OPA/PARAMET.OPA", INPUT INDEXED 
+000580      KY1$ = "1"&FKDNR$
+000590      READ #1,KY1$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA%
+000600      CLOSE #1
+000610      IF BARV%=1 ! vollständige Artikelliste
+000620           LEGENDE.PDF$ = "0 = beim Kunden | 1 = beim Wäscher | 2 = beim Wäscher"
+000630           HILFE$ = "<a href=""/opa/hilfe/bewo_artikel_hilfe_large.html"" target=""hilfe"" onclick=""window.open( ' ' , 'hilfe' , 'width=700, height=300, toolbar=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=no' )""><font face=""verdana"" size=""2"">Hilfe</a></font>"
+000640      ELSE ! unvollständige Liste
+000650           LEGENDE.PDF$ = " " ! keine PDF Legende
+000660           HILFE$ = "<a href=""/opa/hilfe/bewo_artikel_hilfe_small.html"" target=""hilfe"" onclick=""window.open( ' ' , 'hilfe' , 'width=700, height=300, toolbar=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=no' )""><font face=""verdana"" size=""2"">Hilfe</a></font>"
+000670           IFEND 
+000680      FORMA.SORT$ = "<form action=""/cgi.opa/bewo_ar_aus"" method=""post"">"
+000690      SELECT.SORT$ = FN.FORM.SELECT$("sort",1)
+000700      SELECT.SORT.INHALT$(1) = FN.FORM.SELECT.OPTION$("1",0,"Artikelnummer")
+000710      SELECT.SORT.INHALT$(2) = FN.FORM.SELECT.OPTION$("2",0,"Bezeichnung")
+000720      SELECT.SORT.INHALT$(3) = FN.FORM.SELECT.OPTION$("3",0,"Barcode")
+000730      SELECT.SORT.INHALT$(4) = FN.FORM.SELECT.OPTION$("4",0,"Angelegt")
+000740      IF BARV%=1 ! vollständige Liste
+000750           SELECT.SORT.INHALT$(5) = FN.FORM.SELECT.OPTION$("5",0,"Eingang")
+000760           SELECT.SORT.INHALT$(6) = FN.FORM.SELECT.OPTION$("6",0,"Ausgang")
+000770           SELECT.SORT.INHALT$(7) = FN.FORM.SELECT.OPTION$("7",0,"Sequenz")
+000780           SELECT.SORT.INHALT$(8) = FN.FORM.SELECT.OPTION$("8",0,"Status")
+000790           IFEND 
+000800      BUTTON.SORT$ = FN.FORM.BUTTON$("sort","Sortieren")
+000810      FORME.SORT$ = "</form>"
+000820      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000830      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000840      PARA3$ = FN.FORM.HIDDEN$("sort",SORT$)
+000850      PARA4$ = FN.FORM.HIDDEN$("nummer",EINGABE$)
+000860      PARA5$ = FN.FORM.HIDDEN$("methode","nummer")
+000870      PARA6$ = FN.FORM.HIDDEN$("suchbox",SUCHBOX$)
+000880      PARA7$ = FN.FORM.HIDDEN$("suchfeld",SUCHFELD$)
+000890      PARA8$ = FN.FORM.HIDDEN$("artikelbox",ARTIKELBOX$)
+000900      PARA9$ = FN.FORM.HIDDEN$("artikel",ARTIKEL$)
+000910      PARA10$ = FN.FORM.HIDDEN$("sid",SID$)
+000920      SELECT AKTION$
+000930           CASE "list"
+000940                IF VAL(EINGABE$)<=0
+000950                     MSG$(1) = "<li>Die Bewohnernummer darf nicht kleiner/gleich Null sein!</li>"
+000960                     GOTO FEHLER
+000970                     IFEND 
+000980                FL% = 21 \ OPEN #21:"/BEWO21.REI", INPUT INDEXED 
+000990                FL% = 22 \ OPEN #22:"/BEWO22.REI", INPUT INDEXED 
+001000                FL% = 23 \ OPEN #23:"/WWWROOT/TEMP/"&SID$, OUTPUT SEQUENTIAL ! Ausgabedatei für PDF
+001010                KY22$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+001020                GOSUB L22 ! Leseanfang BEWO22.REI
+001030                GOSUB L221 ! nächsten Satz BEWO22.REI
+001040                IF KY22$[2:7]<>FORMAT$(VAL(KDNR$),"999999") OR KY22$[8:13]<>FORMAT$(VAL(EINGABE$),"999999") OR EOF(22) THEN GOTO 1360 ! Seitengen. vorb.
+001050                KY21$ = "1"&KY22$[20:31]
+001060                GOSUB L21 ! Barcodebewohnerartikel BEWO21.REI
+001070                IF BGAR%=0 AND TR76%=1 THEN GOTO 1030 ! keine gesperrten Art. anzeigen
+001080                IF BAOA%=0 AND TR55$="" THEN GOTO 1030 ! Artikel ohne Ausgang nicht anzeigen
+001090                IF SUCHBOX$="aktiv" AND SUCHFELD$<>"" ! Benutzer sucht betimmten Artikel
+001100                     IF SCH(1,UCASE$(TR64$),UCASE$(SUCHFELD$))=0 THEN GOTO 1030
+001110                     IFEND 
+001120                IF ARTIKELBOX$="aktiv" AND ARTIKEL$<>"99"
+001130                     IF (ARTIKEL$="1" OR ARTIKEL$="2") AND (TR52=1 OR TR52=2) THEN GOTO 1160 ! Eingang+Ausgang = beim Wäscher
+001140                     IF ARTIKEL$<>STR$(TR52) THEN GOTO 1030 ! wenn der Status nicht stimmt
+001150                     IFEND 
+001160                IF EOF(21) THEN GOTO 1030 ! nächsten Satz BEWO22
+001170                I% = I%+1
+001180                LFNR$(I%) = STR$(I%)
+001190                ARTBEZ$(I%) = TR64$
+001200                ARTNR(I%) = TRAR
+001210                BARCODE$(I%) = AKY21$[2:13]
+001220                DATBEG$(I%) = STR$(DAY(TR51$))
+001230                DATEIN$(I%) = STR$(DAY(TR54$))
+001240                DATAUS$(I%) = STR$(DAY(TR55$))
+001250                WASEQ%(I%) = TR53
+001260                STATUS%(I%) = TR52
+001270                IF STATUS%(I%)<>0 THEN MENGEB% = MENGEB%+1 ELSE MENGEK% = MENGEK%+1 ! Menge im Betrieb/Kunde zählen
+001280                IF PDF.KOPF.MERKER%=0 ! Kopf das erste mal schreiben
+001290                     GOSUB KOPF
+001300                     PDF.KOPF.MERKER% = 1
+001310                     IFEND 
+001320                GOTO 1030! nächster Datensatz BEWO21.REI
+001330 
+001340 ! *********** ABSCHLIESSENDE AKTIONEN VOR SEITENGENERIERUNG ***********
+001350 
+001360                IF I%=0 ! prüfen ob Bewohner Teile hat
+001370                     MSG$(1) = "<li>Es wurden keine W&auml;scheteile f&uuml;r den Bewohner gefunden!</li>"
+001380                     GOTO FEHLER
+001390                     IFEND 
+001400                SELECT SORT$
+001410                     CASE "1" ! nach Artikelnummer sort.
+001420                          MAT SORT% = SORT(ARTNR)
+001430                     CASE "2" ! nach Bezeichnung sort.
+001440                          MAT SORT% = SORT(ARTBEZ$)
+001450                     CASE "3" ! nach Barcode sort.
+001460                          MAT SORT% = SORT(BARCODE$)
+001470                     CASE "4" ! nach Datum "Angelegt" sort.
+001480                          MAT SORT% = SORT(DATBEG$)
+001490                     CASE "5" ! nach Datum "Eingang" sort.
+001500                          MAT SORT% = SORT(DATEIN$)
+001510                     CASE "6" ! nach Datum "Ausgang" sort.
+001520                          MAT SORT% = SORT(DATAUS$)
+001530                     CASE "7" ! nach Sequenz sort.
+001540                          MAT SORT% = SORT(WASEQ%)
+001550                     CASE "8" ! nach Status sort.
+001560                          MAT SORT% = SORT(STATUS%)
+001570                     OTHERWISE 
+001580                          PRINT "Jo - hier stimmt wat nich" \ STOP 
+001590                     CEND 
+001600                FOR SORTLAUF% = 1 TO 1000 ! Sortierungslauf  [SORT%(1000)]
+001610                     IF STR$(ARTNR(SORT%(SORTLAUF%)))<>"0" ! alle 0 Felder nicht ausgeben
+001620                          IF VAL(DATAUS$(SORT%(SORTLAUF%)))<=0 THEN DATAUS$(SORT%(SORTLAUF%)) = "999999"
+001630                          IF VAL(DATEIN$(SORT%(SORTLAUF%)))<=0 THEN DATEIN$(SORT%(SORTLAUF%)) = "999999"
+001640                          HVAR% = HVAR%+1 ! Hilfsvariable für neue Pos.-nummer
+001650                          IF BARV%=1 ! vollständige Liste
+001660                               CALL CGI.TEMPLATE.VAR("bewo.art"&STR$(HVAR%),"<tr><td align=""center"">"&FONT$&LFNR$(HVAR%)&"</td><td align=""center"">"&FONT$&STR$(ARTNR(SORT%(SORTLAUF%)))&"</td><td align=""left"">"&FONT$&ARTBEZ$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&BARCODE$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&DATE$(VAL(DATBEG$(SORT%(SORTLAUF%))))&"</td><td align=""center"">"&FONT$&DATE$(VAL(DATEIN$(SORT%(SORTLAUF%))))&"</td><td align=""center"">"&FONT$&DATE$(VAL(DATAUS$(SORT%(SORTLAUF%))))&"</td><td align=""right"">"&FONT$&STR$(WASEQ%(SORT%(SORTLAUF%)))&"</td><td align=""center"">"&FONT$&STR$(STATUS%(SORT%(SORTLAUF%)))&"</td></tr></font>")
+001670                               IFEND 
+001680                          IF BARV%=0
+001690                               CALL CGI.TEMPLATE.VAR("bewo.art"&STR$(HVAR%),"<tr><td align=""center"">"&FONT$&LFNR$(HVAR%)&"</td><td align=""center"">"&FONT$&STR$(ARTNR(SORT%(SORTLAUF%)))&"</td><td align=""left"">"&FONT$&ARTBEZ$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&BARCODE$(SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&DATE$(VAL(DATBEG$(SORT%(SORTLAUF%))))&"</td><td align=""center"">"&FONT$&STR$(WASEQ%(SORT%(SORTLAUF%)))&"</td></tr>")
+001700                               IFEND 
+001710                          PDFZL$ = SPACE$(132)
+001720                          PDFZL$[1:3] = LFNR$(HVAR%)
+001730                          PDFZL$[5:10] = STR$(ARTNR(SORT%(SORTLAUF%)))
+001740                          PDFZL$[13:38] = ARTBEZ$(SORT%(SORTLAUF%))
+001750                          PDFZL$[40:52] = BARCODE$(SORT%(SORTLAUF%))
+001760                          PDFZL$[54:61] = DATE$(VAL(DATBEG$(SORT%(SORTLAUF%))))
+001770                          PDFZL$[84:86] = STR$(WASEQ%(SORT%(SORTLAUF%)))
+001780                          IF BARV%=1 ! vollständige Artikelliste
+001790                               PDFZL$[64:71] = DATE$(VAL(DATEIN$(SORT%(SORTLAUF%))))
+001800                               PDFZL$[74:81] = DATE$(VAL(DATAUS$(SORT%(SORTLAUF%))))
+001810                               PDFZL$[84:86] = STR$(WASEQ%(SORT%(SORTLAUF%)))
+001820                               PDFZL$[89:89] = STR$(STATUS%(SORT%(SORTLAUF%)))
+001830                               IFEND 
+001840                          GOSUB PDF ! Zeile in Ausgabedatei für PDF schreiben
+001850                          IFEND 
+001860                     NEXT SORTLAUF%
+001870                CLOSE #23
+001880                SYSTEM "pdf /WWWROOT/TEMP/"&SID$&" > /WWWROOT/TEMP/"&SID$&".PDF (a4 landscape cols 132"
+001890                SYSTEM "er /WWWROOT/TEMP/"&SID$&" (noq" ! PDF-Arbeitsdatei löschen
+001900                PDFDOWN$ = "/temp/"&SID$&".PDF"
+001910                BEWONAME$ = TR63$
+001920                MAXTEILE% = I%
+001930                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001940                CALL CGI.TEMPLATE.VAR("vpasswd",VPASSWD$)
+001950                CALL CGI.TEMPLATE.VAR("pdf.down",PDFDOWN$)
+001960                CALL CGI.TEMPLATE.VAR("bewo.name",BEWONAME$)
+001970                CALL CGI.TEMPLATE.VAR("art.ges",STR$(MAXTEILE%))
+001980                IF BARV%=1 ! Liste vollständig
+001990                     CALL CGI.TEMPLATE.VAR("art.waesch",STR$(MENGEB%))
+002000                     CALL CGI.TEMPLATE.VAR("art.kunde",STR$(MENGEK%))
+002010                     CALL CGI.TEMPLATE.VAR("art.bet.txt","beim W&auml;scher: ")
+002020                     CALL CGI.TEMPLATE.VAR("art.kun.txt","beim Kunden: ")
+002030                     IFEND 
+002040                CALL CGI.TEMPLATE.VAR("bewo.nr",FORMAT$(VAL(EINGABE$),"999999"))
+002050                CALL CGI.TEMPLATE.VAR("forma.sort",FORMA.SORT$)
+002060                CALL CGI.TEMPLATE.VAR("select.sort",SELECT.SORT$)
+002070                CALL CGI.TEMPLATE.VAR("select.sort.inhalt1",SELECT.SORT.INHALT$(1))
+002080                CALL CGI.TEMPLATE.VAR("select.sort.inhalt2",SELECT.SORT.INHALT$(2))
+002090                CALL CGI.TEMPLATE.VAR("select.sort.inhalt3",SELECT.SORT.INHALT$(3))
+002100                CALL CGI.TEMPLATE.VAR("select.sort.inhalt4",SELECT.SORT.INHALT$(4))
+002110                IF BARV%=1  ! vollständige Liste
+002120                     CALL CGI.TEMPLATE.VAR("select.sort.inhalt5",SELECT.SORT.INHALT$(5))
+002130                     CALL CGI.TEMPLATE.VAR("select.sort.inhalt6",SELECT.SORT.INHALT$(6))
+002140                     CALL CGI.TEMPLATE.VAR("select.sort.inhalt7",SELECT.SORT.INHALT$(7))
+002150                     CALL CGI.TEMPLATE.VAR("select.sort.inhalt8",SELECT.SORT.INHALT$(8))
+002160                     CALL CGI.TEMPLATE.VAR("art.eingang","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Eingang&nbsp;</strong></font></td>")
+002170                     CALL CGI.TEMPLATE.VAR("art.ausgang","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Ausgang&nbsp;</strong></font></td>")
+002180                     CALL CGI.TEMPLATE.VAR("art.status","<td align=""center""><font face=""verdana"" size=""2""><strong><a href=""#"" onMouseOver=""ZeigeToolTip('99')"" onMouseOut=""EntferneToolTip()"">Status</a></strong></font></td>")
+002190                     IFEND 
+002200                CALL CGI.TEMPLATE.VAR("art.sequenz","<td align=""center""><font face=""verdana"" size=""2""><strong>&nbsp;Seq.&nbsp;</strong></font></td>")
+002210                CALL CGI.TEMPLATE.VAR("button.sort",BUTTON.SORT$)
+002220                CALL CGI.TEMPLATE.VAR("forme.sort",FORME.SORT$)
+002230                CALL CGI.TEMPLATE.VAR("hilfe",HILFE$)
+002240                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+002250                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+002260                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+002270                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+002280                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+002290                CALL CGI.TEMPLATE.VAR("para6",PARA6$)
+002300                CALL CGI.TEMPLATE.VAR("para7",PARA7$)
+002310                CALL CGI.TEMPLATE.VAR("para8",PARA8$)
+002320                CALL CGI.TEMPLATE.VAR("para9",PARA9$)
+002330                CALL CGI.TEMPLATE.VAR("para10",PARA10$)
+002340                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+002350                CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_ar_aus.tpl")
+002360                GOTO ENDE
+002370           OTHERWISE 
+002380                PRINT "Hacking attempt!"
+002390                STOP 
+002400           CEND 
+002410 ! ********************* HAUPTPROGRAMM ENDE ***********************
+002420 FEHLER:
+002430      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+002440      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+002450      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+002460      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+002470 ENDE:
+002480      END \ QUIT 
+002490 REM ------------------------------------------------
+002500 ERROR.ROUT:
+002510      RC$ = FN.WFKIFEHL$("bewo_ar_aus",ERR,ERL,CRC$,FL%)
+002520 
+002530 REM *******************************************************
+002540 KOPF: ! Kopfzeile für PDF ausgabe
+002550      SZ% = SZ%+1 ! Seitenzähler
+002560      PRINT #23:"B E W O H N E R A R T I K E L"
+002570      PRINT #23:"Bewohnername: "&TRIM$(TR63$);SPACE$(4);"Datum: "&DATE$(0);SPACE$(4);"Uhrzeit: "&TIME$(0);SPACE$(10)&"Seite: "&STR$(SZ%)
+002580      PRINT #23
+002590      PP% = PP%+1 ! Zeilenzähler
+002600      IF BARV%=1 THEN PRINT #23:"Pos";TAB(5);"Art-Nr.";TAB(13);"Artikelbezeichnung";TAB(40);"Barcode";TAB(54);"Angelegt";TAB(64);"Eingang";TAB(74);"Ausgang";TAB(83);"Seq";TAB(88);"Status" ELSE PRINT #23:"Pos";TAB(5);"Art-Nr.";TAB(13);"Artikelbezeichnung";TAB(40);"Barcode";TAB(54);"Angelegt";TAB(83);"Seq" ! PDF Kopf anpassen für vollständige/unvollständige Liste
+002610      PRINT #23:RPT$(132,"-")
+002620      RETURN 
+002630 REM *******************************************************
+002640 PDF: ! Dateiausgabe PDF
+002650      PP% = PP%+1 ! Zeilenzähler
+002660      PRINT #23:PDFZL$
+002670      IF PP%=38 ! Seitenwechsel/Seitenumbruch
+002680           PRINT #23:SPACE$(50);"*** Ü B E R T R A G ***"
+002690           CLEAR PP%
+002700           GOSUB KOPF
+002710           IFEND 
+002720      IF SORTLAUF%=1000 ! letzter Lauf -ergo- Fußzeile
+002730           PRINT #23:SPACE$(132)
+002740           PRINT #23:LEGENDE.PDF$
+002750           PRINT #23
+002760           IFEND 
+002770      RETURN 
+002780 REM *******************************************************
+002790 L21: ! Barcode Bewohnerartikel BEWO21.REI
+002800      FL% = 21 \ READ #21,KY21$:AKY21$,TRKD,TRAR,TRBEWO,TR61$,TR62$,TR63$,TR64$,TR65$,TR66,TR67,TR68$,TR71,TR72$,TR73$,TR74%,TR75%,TR76%,TR77,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91,TR92,TR93,TR94%,TR95%,TR96%,TR97%,XX1$,XX2$ \ UNLOCK #21 \ CLEAR FL%
+002810      RETURN 
+002820 L22: ! Index Bewohnerartikel BEWO22.REI
+002830      FL% = 22 \ READ #22,KY22$:AKY22$,XX1$,XX2$ \ UNLOCK #22 \ CLEAR FL%
+002840      RETURN 
+002850 L221:
+002860      FL% = 22 \ READNEXT #22,KY22$:AKY22$,XX1$,XX2$ \ UNLOCK #22 \ CLEAR FL%
+002870      RETURN 

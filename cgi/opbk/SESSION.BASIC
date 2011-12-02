@@ -1,0 +1,82 @@
+000010 REM Programm zur Loginverwaltung
+000020 REM 02.04.09 - Schmidt (Programmerstellung)
+000030 REM 28.07.09 - Schmidt (Kostenstellenfehler behoben)
+000040 
+000050      INCLUDE "CGI"
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionverwaltung
+000090 
+000100      ON ERROR GOTO ERROR.ROUT
+000110 
+000120      OPTION VERSION 1.0.02,"Mittermeier & Ungelenk GmbH"
+000130 
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$))
+000160      CALL CGI.GET("kst",ADDROF(KST$))
+000170      CALL CGI.GET("passwd",ADDROF(PASSWD$))
+000180      CALL CGI.GET("sid",ADDROF(SID$))
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000200      KDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000210 
+000220      COMMON KDNR$,SID$,KST$
+000230      SELECT 
+000240           CASE PASSWD$<>"" AND AKTION$="Anmelden" AND (KDNR$<>"" OR KST$<>"")! Anmeldung
+000250                IF KST$<>"" ! Login mit Kostenstelle
+000260                     FL% = 3 \ OPEN #3:"/KUSUKO.REI", INPUT INDEXED ! Suchindex Kst
+000270                     KY3$ = "1"&KST$
+000280                     READ #3,KY3$:XX$
+000290                     READNEXT #3,KY3$:XX$
+000300                     IF TRIM$(KY3$[2:11])=KST$ ! Kostenstelle existiert
+000310                          KDNR$ = FORMAT$(VAL(TRIM$(KY3$[12:17])),"999999")
+000320                          CLOSE #3
+000330                     ELSE  ! Kostenstelle gibt es nicht
+000340                          CALL CGI.TEMPLATE.VAR("msg1","Kostenstelle existiert nicht!")
+000350                          CALL CGI.TEMPLATE("/wwwroot/opbk/error.asp")
+000360                          CLOSE #3
+000370                          GOTO ENDE
+000380                          IFEND 
+000390                     IFEND 
+000400                KY2$ = FORMAT$(VAL(KDNR$),"999999")
+000410                FL% = 2 \ FL$ = "PASSWRD.OPBK" \ OPEN #2:"/WWWROOT/OPBK/PASSWRD.OPBK", INPUT INDEXED 
+000420                READ #2,KY2$:XKDNR$,CHKPASSWD$ \ CLEAR FL%
+000430                IF EOF(2) ! Kundennummer nicht gefunden
+000440                     CLOSE #2
+000450                     CALL CGI.TEMPLATE.VAR("msg1","Kundennummer oder Passwort falsch!")
+000460                     CALL CGI.TEMPLATE("/wwwroot/opbk/error.asp")
+000470                     GOTO ENDE
+000480                     IFEND 
+000490                IF NOT EOF(2) ! Kundennummer gefunden
+000500                     IF TRIM$(PASSWD$)<>TRIM$(CHKPASSWD$) ! Passwort stimmt nicht
+000510                          CALL CGI.TEMPLATE.VAR("msg1","Falsches Passwort!")
+000520                          RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000530                          CALL CGI.TEMPLATE("/wwwroot/opbk/error.asp")
+000540                          GOTO ENDE
+000550                          IFEND 
+000560                     FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000570                     RC$ = FN.WFSESSION$("session.generate","",FKDNR$)
+000580                     SID$ = RC$ ! Rückgabewert v. WFSESSION ist Session-ID
+000590                     FL% = 5 \ OPEN #5:"/WWWROOT/OPBK/ZUGRIFF.OPBK", OUTPUT INDEXED 
+000600                     CALL CGI.BROWSER("browser",ADDROF(BR.NAME$))
+000610                     CALL CGI.BROWSER("version",ADDROF(BR.VER$))
+000620                     CALL CGI.BROWSER("platform",ADDROF(BR.PLAT$))
+000630                     WRITE #5,"1"&KDNR$&STR$(DAY(DATE$(0)))&STR$(SECOND(TIME$(0))):KDNR$,BR.NAME$&" "&BR.VER$,BR.PLAT$,DATE$(0),TIME$(0),SYS.ENV$(17,"REMOTE_ADDR")
+000640                     CLOSE #5
+000650                     CHAIN "index" ! index autom. ausführen und parsen
+000660                     IFEND 
+000670           CASE AKTION$="Abmelden"
+000680                FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000690                RC$ = FN.WFSESSION$("session.destroy",SID$,FKDNR$)
+000700                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000710                CALL CGI.TEMPLATE("/wwwroot/opbk/logout.asp")
+000720           OTHERWISE 
+000730                CALL CGI.TEMPLATE.VAR("msg1","Fehler! Bitte überprüfen Sie ihre Eingaben")
+000740                RC$ = FN.WFFOOTER$(NIX$) !Fußzeile
+000750                CALL CGI.TEMPLATE("/wwwroot/opbk/error.asp")
+000760                GOTO ENDE
+000770           CEND 
+000780 ENDE:
+000790      END \ QUIT 
+000800 REM ---------------------------------------------------------
+000810 ERROR.ROUT:
+000820      RC$ = FN.WFKIFEHL$("session",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,238 @@
+000010 REM Programm zur Anzeige der bewo_ae_idx.tpl Datei
+000020 REM 11.04.2008 - Schmidt (Programmerstellung)
+000030 REM 25.04.2008 - Schmidt (Maskenumbau + Sperre Bewoher)
+000040 REM 21.05.2008 - Schmidt (gestorben+umgezogen abbrechen mit Meldung)
+000050 REM 22.05.2008 - Schmidt (Fehlerbehandlung)
+000060 REM 23.06.2008 - Schmidt (Schalter für div. Vorbelegungen)
+000070 REM 03.07.2008 - Schmidt (Zahlerinfos ggf. Vorbelegen und anzeigen)
+000080 REM 07.07.2008 - Schmidt (Strukurablaufproblem behoben)
+000090 REM 29.10.2008 - Schmidt (Suchnamenübernahme)
+000100 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000110 REM 19.12.2008 - Schmidt (Pflegetage im akt. Monat anzg.)
+000120 
+000130      INCLUDE "CGI"
+000140      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000150      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000160      INCLUDE "WFZUGANG.INC" ! Zugangsprüfung
+000170      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000180 
+000190      OPTION VERSION 2.0.02,"Mitttermeier & Ungelenk GmbH"
+000200 
+000210      ON ERROR GOTO ERROR.ROUT
+000220 
+000230      DIM MONATS.NAMEN$(12),TAGNR$(31),DA$(31)
+000240 
+000250 REM *******************************************************
+000260      CALL CGI.INIT
+000270      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000280      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000290      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000300      CALL CGI.GET("methode",ADDROF(METHODE$)) ! Bewo.-nr / Bewo.-name
+000310      CALL CGI.GET("namen",ADDROF(GBEWONA$)) ! gesucht über Namenliste
+000320      CALL CGI.GET("nummer",ADDROF(GBEWONR$)) ! gesucht über Nummernliste
+000330      CALL CGI.GET("suchna",ADDROF(GBEWOSU$)) ! gesucht über Nummernliste
+000340 REM *******************************************************
+000350 
+000360 REM ************ Session prüfen ***************
+000370      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000380      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000390 REM ************ Zugang prüfen ***************
+000400      RC$ = FN.WFZUGANG$("bewo_ae",FKDNR$)
+000410 REM *******************************************
+000420 
+000430      MONAT% = VAL(DATE$(0)[4:5])
+000440      SELECT ! Entscheidung der max. Tage im laufenden Monat
+000450           CASE MONAT%=1 OR MONAT%=3 OR MONAT%=5 OR MONAT%=7 OR MONAT%=8 OR MONAT%=10 OR MONAT%=12
+000460                M.TAGE% = 31
+000470           CASE MONAT%=4 OR MONAT%=6 OR MONAT%=9 OR MONAT%=11
+000480                M.TAGE% = 30
+000490           OTHERWISE           ! Februar
+000500                JAHR$ = DATE$(0)[7:10]           ! aktuelles Jahr
+000510                JAHR$ = STR$(VAL(JAHR$)/4)           ! Teile Jahr durch 4
+000520                SJAHR% = 0
+000530                IF SCH(1,JAHR$,".")=SJAHR%
+000540                     M.TAGE% = 29           ! Schaltjahr
+000550                ELSE 
+000560                     M.TAGE% = 28           ! Kommatazahl, kein Schaltjahr
+000570                     IFEND 
+000580           CEND 
+000590      SELECT AKTION$
+000600           CASE "list"
+000610                IF METHODE$="nummer" THEN EINGABE$ = GBEWONR$ ! übernahme
+000620                IF METHODE$="namen" THEN EINGABE$ = GBEWONA$ ! Übernahme
+000630                IF METHODE$="suchna" THEN EINGABE$ = GBEWOSU$ ! Übernahme
+000640                IF VAL(EINGABE$)<=0 THEN GOTO FEHLER
+000650                IF VAL(EINGABE$)>0
+000660                     FL% = 11 \ OPEN #11:"/BEWOH1.REI", INPUT INDEXED ! Bewo.-stamm
+000670                     KY11$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+000680                     GOSUB L11 \ UNLOCK #11 ! Bewohnerstamm lesen
+000690                     IF EOF(11) THEN GOTO FEHLER
+000700                     IF ASP3$[6:6]="2" OR ASP3$[6:6]="3" THEN GOTO SPERRE ! gestorben/umgezogen - Meldung
+000710                     FL% = 12 \ OPEN #12:"/WWWROOT/EXPORT/BEWOEXP.OPA", INPUT INDEXED \ CLEAR FL%
+000720                     KY12$ = "1BAE"
+000730                     GOSUB L12 \ UNLOCK #12
+000740                     WHILE KY12$[1:4]="1BAE"
+000750                          GOSUB L121 \ UNLOCK #12
+000760                          IF XXKDNR$=FKDNR$ AND XXBEWNR=ASNR THEN CLOSE #12 \ GOTO NICHT.VERARBEITET
+000770                          WEND 
+000780                     CLOSE #12
+000790                     CLEAR EINGANG$
+000800                     FL% = 21 \ OPEN #21:"/BEWO21.REI", INPUT INDEXED ! Bewo.-st.
+000810                     FL% = 22 \ OPEN #22:"/BEWO22.REI", INPUT INDEXED ! BC-Index
+000820                     KY22$ = "1"&FKDNR$&FORMAT$(VAL(EINGABE$),"999999")
+000830                     GOSUB L22 \ UNLOCK #22 ! Leseanfang BEWO22.REI
+000840                     GOSUB L221 \ UNLOCK #22 ! nächsten BC-Index lesen BEWO22.REI
+000850                     IF EOF(22) OR KY22$[2:13]<>FKDNR$&FORMAT$(VAL(EINGABE$),"999999") THEN GOTO 950
+000860                     KY21$ = "1"&KY22$[20:31]
+000870                     GOSUB L21 \ UNLOCK #21 ! Barcodeartikel lesen BEWO21.REI
+000880                     IF NOT DTE$(TR54$) THEN GOTO 840 ! kein Eingangsdatum
+000890                     IF EINGANG$="" OR DAY(EINGANG$[1:4]&"20"&EINGANG$[5:6])<DAY(TR54$[1:4]&"20"&TR54$[5:6]) THEN EINGANG$ = TR54$ ! letzter Eingang
+000900                     GOTO 840
+000910 
+000920 ! *****************************************************
+000930 ! Kennzeichnungen für Drop-Down Menüs vorbelegen
+000940 ! *****************************************************
+000950                     CLOSE #21 \ CLOSE #22
+000960                     SELECT.SPERRE.BEWO$ = FN.FORM.SELECT$("sperre",1)
+000970                     SELECT.SPERRE.BEWO.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",0,"0 - keine Sperre")
+000980                     SELECT.SPERRE.BEWO.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",0,"1 - gesperrt")
+000990                     SELECT.SPERRE.BEWO.INHALT$(3) = FN.FORM.SELECT.OPTION$("2",0,"2 - gestorben")
+001000                     SELECT VAL(ASP3$[6:6]) ! Schalter Sperrung vorbelegen
+001010                          CASE 0
+001020                               SELECT.SPERRE.BEWO.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",1,"0 - keine Sperre")
+001030                          CASE 1
+001040                               SELECT.SPERRE.BEWO.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",1,"1 - gesperrt")
+001050                          CEND 
+001060 
+001070                     CALL CGI.TEMPLATE.VAR("bewo.nr",STR$(ASNR))
+001080                     CALL CGI.TEMPLATE.VAR("bewo.name",TRIM$(ASBE$))
+001090                     CALL CGI.TEMPLATE.VAR("bewo.such",ASSW$)
+001100                     CALL CGI.TEMPLATE.VAR("bewo.pflege",ASP1$)
+001110                     CALL CGI.TEMPLATE.VAR("bewo.zimmer",TRIM$(ASP2$))
+001120                     CALL CGI.TEMPLATE.VAR("bewo.station",TRIM$(ASP3$[1:5]))
+001130                     CALL CGI.TEMPLATE.VAR("bewo.sperre",ASP3$[6:6]&" "&SPERRE$)
+001140                     CALL CGI.TEMPLATE.VAR("bewo.zahlart",ASP3$[8:8]&" "&ZAHLART$)
+001150                     CALL CGI.TEMPLATE.VAR("bewo.eingang",DTE$(EINGANG$))
+001160                     CALL CGI.TEMPLATE.VAR("bewo.lebels",ASP3$[42:47])
+001170                     CALL CGI.TEMPLATE.VAR("bewo.lebeda",DTE$(ASP3$[48:53]))
+001180                     CALL CGI.TEMPLATE.VAR("bewo.opas",TRIM$(ASP3$[54:68]))
+001190                     CALL CGI.TEMPLATE.VAR("bewo.anpfta",DTE$(ASP3$[70:75]))
+001200                     CALL CGI.TEMPLATE.VAR("bewo.abpfta",DTE$(ASP3$[76:81]))
+001210                     IF BTA%=1 ! Heim darf Korrekturtage ändern
+001220                          KOTA.LINK$ = "<a href=""/cgi.opa/bewo_kota?aktion=list&kdnr="&KDNR$&"&bewnr="&EINGABE$&"&sid="&SID$&" "" target=""bewo_kota"" onclick=""window.open( ' ' , 'bewo_kota' , 'width=500, height=600, toolbar=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=no' )""><strong>[&Auml;ndern]</strong></a>"
+001230                          CALL CGI.TEMPLATE.VAR("bewo.kota",STR$(M.TAGE%)&" / "&ASP3$[82:83]&" "&KOTA.LINK$)
+001240                     ELSE 
+001250                          CALL CGI.TEMPLATE.VAR("bewo.kota",STR$(M.TAGE%)&" / "&ASP3$[82:83])
+001260                          IFEND 
+001270                     CALL CGI.TEMPLATE.VAR("bewo.erst",ASP4$)
+001280                     CALL CGI.TEMPLATE.VAR("bewo.abrech",STR$(ASP7%)&" "&ABRECH$)
+001290                     CALL CGI.TEMPLATE.VAR("bewo.beginn",DTE$(ASP3$[30:35]))
+001300                     CALL CGI.TEMPLATE.VAR("bewo.ende",DTE$(ASP3$[36:41]))
+001310                     IF BSP%=1 ! Benutzer darf Bewohner sperren
+001320                          CALL CGI.TEMPLATE.VAR("select.sperre.bewo",SELECT.SPERRE.BEWO$)
+001330                          CALL CGI.TEMPLATE.VAR("select.sperre.bewo.inhalt1",SELECT.SPERRE.BEWO.INHALT$(1))
+001340                          CALL CGI.TEMPLATE.VAR("select.sperre.bewo.inhalt2",SELECT.SPERRE.BEWO.INHALT$(2))
+001350                          CALL CGI.TEMPLATE.VAR("select.sperre.bewo.inhalt3",SELECT.SPERRE.BEWO.INHALT$(3))
+001360                          CALL CGI.TEMPLATE.VAR("select.sperre.bewo.inhalt4",SELECT.SPERRE.BEWO.INHALT$(4))
+001370                          IFEND 
+001380                     CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001390                     SELECT VAL(ASP3$[69:69]) ! sperre Reinigung vorb.
+001400                          CASE 0
+001410                               CALL CGI.TEMPLATE.VAR("sprei.selected.0","selected")
+001420                          OTHERWISE 
+001430                               CALL CGI.TEMPLATE.VAR("sprei.selected.1","selected")
+001440                          CEND 
+001450                     SELECT VAL(ASP3$[8:8]) ! Zahlungsart vorb. ggf. Zahlerinfos anzeigen
+001460                          CASE 0
+001470                               CALL CGI.TEMPLATE.VAR("zahlart.selected.0","selected")
+001480                               CALL CGI.TEMPLATE.VAR("zahlerae","abschalten();")
+001490                          OTHERWISE 
+001500                               CALL CGI.TEMPLATE.VAR("zahlart.selected.2","selected")
+001510                               CALL CGI.TEMPLATE.VAR("zahlerae","einschalten();")
+001520                               FL% = 10 \ OPEN #10:"/BEWO10.REI", INPUT INDEXED ! Zahleradresse Bewohner
+001530                               KY10$ = "1"&FKDNR$&FORMAT$(ASNR,"999999")
+001540                               GOSUB L10 \ UNLOCK #10 ! Zahleradresse lesen
+001550                               CALL CGI.TEMPLATE.VAR("bka1",BKA1$)
+001560                               CALL CGI.TEMPLATE.VAR("bka2",BKA2$)
+001570                               CALL CGI.TEMPLATE.VAR("bka3",BKA3$)
+001580                               CALL CGI.TEMPLATE.VAR("bkst",BKST$)
+001590                               CALL CGI.TEMPLATE.VAR("bkpl",STR$(BKPL))
+001600                               CALL CGI.TEMPLATE.VAR("bkor",BKOR$)
+001610                               CALL CGI.TEMPLATE.VAR("bk1",BK1$)
+001620                               CALL CGI.TEMPLATE.VAR("bk2",STR$(BK2))
+001630                               CALL CGI.TEMPLATE.VAR("bk3",STR$(BK3))
+001640                               CLOSE #10
+001650                          CEND 
+001660                     SELECT ASP7% ! Abrechnungsauswahl vorb.
+001670                          CASE 0
+001680                               CALL CGI.TEMPLATE.VAR("abrechnung.selected.0","selected")
+001690                          OTHERWISE 
+001700                               CALL CGI.TEMPLATE.VAR("abrechnung.selected.1","selected")
+001710                          CEND 
+001720                     RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001730                     CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_ae_aus.tpl")
+001740                     GOTO ENDE
+001750                     IFEND 
+001760           OTHERWISE 
+001770                PRINT "Hacking attempt!"
+001780                STOP 
+001790           CEND 
+001800 ENDE:
+001810      END \ QUIT 
+001820 REM ------------------------------------------------------
+001830 FEHLER:
+001840      MSG$(1) = "<li>Der Bewohner wurde nicht gefunden!</li>"
+001850      MSG$(2) = "<li>Die Eingabe der Bewohnernummer ist kleiner oder gleich Null!</li>"
+001860      MSG$(3) = "<li>Die Eingabe der Bewohnernummer ist nicht numerisch!</li>"
+001870      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001880      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001890      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001900      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+001910      GOTO ENDE
+001920 REM ------------------------------------------------------
+001930 SPERRE: ! Bewohner gestorben oder umgezogen
+001940      MSG$(1) = "Die Stammdaten des gew&auml;hlten Bewohners k&ouml;nnen nicht ge&auml;ndert werden<br/><br/>"
+001950      MSG$(2) = "<li>Bewohner ist gekennzeichnet als ""gestorben"" oder ""umgezogen""</li>"
+001960      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001970      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001980      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+001990      GOTO ENDE
+002000 REM ------------------------------------------------------
+002010 NICHT.VERARBEITET: ! Datensatz noch nicht verarbeitet
+002020      MSG$(1) = "Die Stammdaten des gew&auml;hlten Bewohners k&ouml;nnen nicht ge&auml;ndert werden<br/><br/>"
+002030      MSG$(2) = "<li>Die vorherige &Auml;nderung wurde noch nicht von der W&auml;scherei &uuml;bernommen</li>"
+002040      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+002050      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+002060      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/fehler.tpl")
+002070      GOTO ENDE
+002080 REM ------------------------------------------------------
+002090 L10: ! Bewohner Zahleradresse lesen
+002100      FL% = 10 \ READ #10,KY10$:BKFR%,BKNR,BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$ \ CLEAR FL%
+002110      RETURN 
+002120 REM ------------------------------------------------------
+002130 L11: ! Bewohnerstamm lesen
+002140      FL% = 11 \ READ #11,KY11$:AS1%,AS2%,ZNR%,KNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,TEMP$,TEMP$
+002150      RETURN 
+002160 REM ------------------------------------------------
+002170 L12: ! Bewohner Export lesen
+002180      FL% = 12 \ READ #12,KY12$:XXKDNR$,XXBEWNR
+002190      RETURN 
+002200 REM ------------------------------------------------
+002210 L121: ! Bewohner Export nächsten Satz lesen
+002220      FL% = 12 \ READNEXT #12,KY12$:XXKDNR$,XXBEWNR
+002230      RETURN 
+002240 REM ------------------------------------------------
+002250 L21: ! Barcodeartikel lesen BEWO21.REI
+002260      FL% = 21 \ READ #21,KY21$:AKY21$,TRKD,TRAR,TRBEWO,TR61$,TR62$,TR63$,TR64$,TR65$,TR66,TR67,TR68$,TR71,TR72$,TR73$,TR74%,TR75%,TR76%,TR77%,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91,TR92,TR93,TR94%,TR95%,TR96%,XTR97%,TR98$,TR99$,XX$ \ CLEAR FL%
+002270      RETURN 
+002280 REM ------------------------------------------------
+002290 L22: ! Index Barcodeartikel lesen BEWO22.REI
+002300      FL% = 22 \ READ #22,KY22$:AKY22$,XX1$,XX2$ \ CLEAR FL%
+002310      RETURN 
+002320 REM ------------------------------------------------
+002330 L221: ! nächsten Index Barcodeartikel lesen BEWO22.REI
+002340      FL% = 22 \ READNEXT #22,KY22$:AKY22$,XX1$,XX2$ \ CLEAR FL%
+002350      RETURN 
+002360 ERROR.ROUT:
+002370 REM ------------------------------------------------
+002380      RC$ = FN.WFKIFEHL$("bewo_ae_aus",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,68 @@
+000010 REM Programm zur Anzeige der bk_li_idx.tpl Datei
+000020 REM 17.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFBKTRAE.INC" ! Trägerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFZUGANG.INC" ! Zugangskontrolle
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Passwort übernehmen
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000200 REM *******************************************************
+000210 
+000220 REM ************ Session prüfen ***************
+000230      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000240      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000250 REM ************ Zugang prüfen ***************
+000260      RC$ = FN.WFZUGANG$("bk_li",FKDNR$)
+000270 REM *******************************************
+000280 
+000290      LEER$ = "&nbsp;" ! HTML-Code Leerzeichen
+000300      UMBR$ = "<br />" ! HTML-Code Zeilenumbruch
+000310      SELECT AKTION$
+000320           CASE "start"
+000330                THEMA1$ = "Hier k&ouml;nnen Sie bestimme Tr&auml;ger anzeigen lassen <br />"
+000340                THEMA2$ = "oder eine komplette Liste der Tr&auml;ger <br />"
+000350                FORMSTART$ = "<form action=""/cgi.opbk/bk_li_aus"" method=""post"">"
+000360                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000370                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000380                PARA3$ = FN.FORM.HIDDEN$("sort","1")
+000390                PARA4$ = FN.FORM.HIDDEN$("sid",SID$)
+000400           REM -------- BEWOHNER LESEN ANFANG ---------
+000410                RC$ = FNWFBKTRAE$(FKDNR$)
+000420           REM -------- BEWOHNER LESEN ENDE ---------
+000430                BUTTON$ = FN.FORM.BUTTON$("Anzeigen","Anzeigen")
+000440                FORMENDE$ = "</form>"
+000450                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000460                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000470                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000480                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000490                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000500                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000510                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000520                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000530                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000540                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000550                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000560                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000570                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000580                CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_li_idx.tpl")
+000590                GOTO ENDE
+000600           OTHERWISE 
+000610                PRINT "Hacking attempt!"
+000620                STOP 
+000630           CEND 
+000640 ENDE:
+000650      END \ QUIT 
+000660 REM ------------------------------------------------
+000670 ERROR.ROUT:
+000680      RC$ = FN.WFKIFEHL$("bk_li_idx",ERR,ERL,CRC$,FL%)

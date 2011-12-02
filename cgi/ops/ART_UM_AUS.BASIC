@@ -1,0 +1,127 @@
+000010 REM Programm zur Anzeige der heim_um_aus.tpl Datei
+000020 REM 09.02.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFALLGEM.INC" ! allgemein Funktionen
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150      DIM ART.NR(1000),ART.BEZ$(1000),PJAN(1000),PFEB(1000),PMAE(1000),PAPR(1000),PMAI(1000),PJUN(1000),PJUL(1000),PAUG(1000),PSEP(1000),POKT(1000),PNOV(1000),PDEZ(1000),PGES(1000)
+000160 
+000170 REM *******************************************************
+000180      CALL CGI.INIT
+000190      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000200      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000210      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000220      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000230      CALL CGI.GET("jahr",ADDROF(JAHR$)) ! Umsatzjahr
+000240 REM *******************************************************
+000250 
+000260 REM ************ Session prüfen ***************
+000270      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000280      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000290 REM *******************************************
+000300 
+000310 
+000320      M1$ = "########-" \ M2$ = "#########-" \ M3$ = "#########.##-" \ M4$ = "##########.##-" ! Zahlenformat
+000330      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000340      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000350      AKT.JAHR$ = DATE$(0)[7:10]
+000360      VOR.JAHR$ = STR$(VAL(DATE$(0)[7:10])-1)
+000370      SELECT AKTION$
+000380           CASE "list"
+000390                OPEN #1:"/KUSTWA.REI", INPUT INDEXED 
+000400                OPEN #4:"/FISTAM.REI", INPUT INDEXED 
+000410                OPEN #6:"/ARSTU1.REI", INPUT INDEXED 
+000420                OPEN #11:"/ARSTEU.REI", INPUT INDEXED 
+000430                KY1$ = "1"&FKDNR$
+000440                GOSUB L1 \ UNLOCK #1 \ CLOSE #1 ! Kunden lesen
+000450                HEIM$ = TRIM$(KA1$)&"; "&TRIM$(KA2$)
+000460                SATZ% = 2 ! fakturierte Preise
+000470                KY6$ = "1"&STR$(SATZ%)&JAHR$&FKDNR$&"000000"
+000480                GOSUB L6 ! Leseanfang ARSTU1
+000490                GOSUB L61 ! nächster Satz ARSTU1
+000500                IF EOF(6) OR VAL(AKY6$[2:2])<>SATZ% OR AKY6$[3:6]<>JAHR$ OR AKY6$[7:12]>FKDNR$ THEN GOTO AUSGABE
+000510                I% = I%+1 ! Satzzähler
+000520                ART.NR(I%) = VAL(AKY6$[13:18])
+000530                GOSUB BERECH
+000540                KY11$ = "1000000"&AKY6$[13:18]
+000550                GOSUB L11
+000560                IF TRIM$(ASBE$)="" THEN ASBE$ = "*** Artikel fehlt ***"
+000570                CALL UMLAUTE.ZU.HTML(ASBE$)
+000580                ART.BEZ$(I%) = HTML.CODE$
+000590                GOTO 490
+000600 
+000610           AUSGABE:
+000620                IF I%<=0 ! keine Umsätze
+000630                     MSG$(1) = "<li>Keine Ums&auml;tze gefunden!</li>"
+000640                     GOTO FEHLER
+000650                     IFEND 
+000660                FOR X% = 1 TO I%
+000670                     IF MOD(X%,2)=1 THEN FARBE$ = "#ccccbb"
+000680                     IF MOD(X%,2)=0 THEN FARBE$ = "#ffffff"
+000690                     CALL CGI.TEMPLATE.VAR("zeilen.art.ums"&STR$(X%),"<tr bgcolor="""&FARBE$&""" ><td align=""right"">"&STR$(ART.NR(X%))&"</td><td align=""left"">"&ART.BEZ$(X%)&"</td><td align=""right"">"&FORMAT$(PJAN(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PFEB(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PMAE(X%),M3$)&"</td><td align=""right"">"&FORMAT$(PAPR(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PMAI(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PJUN(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PJUL(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PAUG(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PSEP(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(POKT(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PNOV(X%)/100,M3$)&"</td><td align=""right"">"&FORMAT$(PDEZ(X%)/100,M3$)&"</td><td align=""right""><i><font color=""#336699""><strong>&nbsp;"&FORMAT$(PGES(X%)/100,M3$)&" &euro;</strong></font></i></td></tr>")
+000700                     NEXT X%
+000710                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000720                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000730                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000740                PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+000750                CALL CGI.TEMPLATE.VAR("msg","Artikelum&auml;tze des Kunden "&HEIM$&", im Jahr "&JAHR$)
+000760                CALL CGI.TEMPLATE.VAR("letzte.akt","letzte Berechnung des Umsatzes: "&W98$)
+000770                CALL CGI.TEMPLATE.VAR("akt.jahr",AKT.JAHR$)
+000780                CALL CGI.TEMPLATE.VAR("vor.jahr",VOR.JAHR$)
+000790                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000800                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000810                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000820                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000830                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000840                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+000850                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000860                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000870                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/art_um_aus.tpl")
+000880                GOTO ENDE
+000890           OTHERWISE 
+000900                PRINT "Hacking attempt!"
+000910                GOTO ENDE
+000920           CEND 
+000930 FEHLER:
+000940      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000950      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000960      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+000970      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+000980 ENDE:
+000990      END 
+001000 REM -------------------------------------------------------------------
+001010 BERECH:
+001020      IF AKY6$[25:25]="1" THEN PJAN(I%) = PJAN(I%)+W1 \ PFEB(I%) = PFEB(I%)+W2 \ PMAE(I%) = PMAE(I%)+W3 \ PAPR(I%) = PAPR(I%)+W4 \ PMAI(I%) = PMAI(I%)+W5 \ PJUN(I%) = PJUN(I%)+W6 \ PJUL(I%) = PJUL(I%)+W7 \ PAUG(I%) = PAUG(I%)+W8 \ PSEP(I%) = PSEP(I%)+W9 \ POKT(I%) = POKT(I%)+W10 \ PNOV(I%) = PNOV(I%)+W11 \ PDEZ(I%) = PDEZ(I%)+W12 \ PGES(I%) = PGES(I%)+W25 ! Rechnungsbetrag
+001030      PGES(I%) = PJAN(I%)+PFEB(I%)+PMAE(I%)+PAPR(I%)+PMAI(I%)+PJUN(I%)+PJUL(I%)+PAUG(I%)+PSEP(I%)+POKT(I%)+PNOV(I%)+PDEZ(I%)
+001040 REM Die Gutschriften lass ich erstmal raus... Die Anzeige könnte also verfälscht sein!
+001050      RETURN 
+001060 REM -------------------------------------------------------------------
+001070 ERROR.ROUT:
+001080      RC$ = FN.WFKIFEHL$("heim_um_aus",ERR,ERL,CRC$,FL%)
+001090 REM ------------------------------------------------
+001100 L1: ! Kunden lesen KUSTWA.REI
+001110      READ #1,KY1$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,KRB%,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,KUE1$,KUE2$,KUE3% \ UNLOCK #1
+001120      RETURN 
+001130 L4: ! Firmenstamm lesen FISTAM.REI
+001140      READ #4,ZNR$&"01":ZNR%,ZA1$,ZA2$ \ UNLOCK #4
+001150      RETURN 
+001160 L6: ! Artikelumsatz lesen ARSTU1.REI
+001170      READ #6,KY6$:AKY6$,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,W13,W14,W15,W16,W17,W18,W19,W20,W21,W22,W23,W24,W25,W26,W27,W28,W29,W30,W98$,W99$ \ UNLOCK #6
+001180      RETURN 
+001190 L61: ! nächsten Artikelumsatz lesen ARSTU1.REI
+001200      READNEXT #6,KY6$:AKY6$,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,W13,W14,W15,W16,W17,W18,W19,W20,W21,W22,W23,W24,W25,W26,W27,W28,W29,W30,W98$,W99$ \ UNLOCK #6
+001210      RETURN 
+001220 L11: ! Artikel lesen ARSTEU.REI
+001230      READ #11,KY11$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$,ASSW$,AS3%,AS4%,AS5%,AS6%,AS7%,ASP1,ASP2,ASP3,ASP4,ASP5,ASP6,ASP7,ASP8,AS8%,AS9%,AS10$,KUE1$,KUE2$,KUE3% \ UNLOCK #11
+001240      RETURN 
+001250 L12: ! Artikelergänzung lesen ARSTW2.REI
+001260      READ #12,KY11$:AKY12$,A201$,A202$,A203$,A204$,A205,A206,A207,A208,A209,A210,A211,A212,A213,A214%,A215%,XX$,XX1$,XX2$,A216%,A217% \ UNLOCK #12
+001270      RETURN 

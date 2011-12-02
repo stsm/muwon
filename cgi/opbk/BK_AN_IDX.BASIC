@@ -1,0 +1,34 @@
+000010 REM Programm zur Anzeige der bk_an_idx.tpl Datei
+000020 REM 27.04.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080      INCLUDE "WFZUGANG.INC" ! Zugangskontrolle
+000090 
+000100      OPTION VERSION 1.0.01,"Mitttermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("sid",ADDROF(SID$))
+000180 REM *******************************************************
+000190 
+000200 REM ************ Session prüfen ***************
+000210      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000220      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000230 REM ************ Zugang prüfen ***************
+000240      RC$ = FN.WFZUGANG$("bk_an",FKDNR$)
+000250 REM *******************************************
+000260 
+000270      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000280      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000290      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_an_idx.tpl")
+000300 ENDE:
+000310      END \ QUIT 
+000320 REM ------------------------------------------------
+000330 ERROR.ROUT:
+000340      RC$ = FN.WFKIFEHL$("bk_an_idx",ERR,ERL,CRC$,FL%)

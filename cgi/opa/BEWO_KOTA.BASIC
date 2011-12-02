@@ -1,0 +1,134 @@
+000010 REM BEWO_KOTA.BASIC zum anzeigen der BEWO_KOTA.TPL
+000020 REM Verwaltung der An-/ Abmeldetage bzw. Korrekturtage
+000030 REM 05.11.2008 - Schmidt (Programmerstellung)
+000040 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000050 
+000060      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000070 
+000080      INCLUDE "CGI"
+000090      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000100      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session ID
+000170      CALL CGI.GET("bewnr",ADDROF(BEWNR$)) ! Bewohnernummer
+000180      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! was tun wir
+000190 
+000200 REM ************ Session prüfen ***************
+000210      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000220      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000230 REM *******************************************
+000240 
+000250      DIM MONATS.NAMEN$(12),TAGNR$(31),DA$(31)
+000260      DIM ANAB%(31)
+000270      MONATS.NAMEN$(1) = "Januar "&DATE$(0)[7:10]
+000280      MONATS.NAMEN$(2) = "Februar "&DATE$(0)[7:10]
+000290      MONATS.NAMEN$(3) = "M&auml;rz "&DATE$(0)[7:10]
+000300      MONATS.NAMEN$(4) = "April "&DATE$(0)[7:10]
+000310      MONATS.NAMEN$(5) = "Mai "&DATE$(0)[7:10]
+000320      MONATS.NAMEN$(6) = "Juni "&DATE$(0)[7:10]
+000330      MONATS.NAMEN$(7) = "Juli "&DATE$(0)[7:10]
+000340      MONATS.NAMEN$(8) = "August "&DATE$(0)[7:10]
+000350      MONATS.NAMEN$(9) = "September "&DATE$(0)[7:10]
+000360      MONATS.NAMEN$(10) = "Oktober "&DATE$(0)[7:10]
+000370      MONATS.NAMEN$(11) = "November "&DATE$(0)[7:10]
+000380      MONATS.NAMEN$(12) = "Dezember "&DATE$(0)[7:10]
+000390      MONAT% = VAL(DATE$(0)[4:5])
+000400 
+000410      FL% = 7 \ OPEN #7:"/WWWROOT/OPA/ANABMLD.OPA", UPDATE INDEXED \ CLEAR FL%
+000420 
+000430      SELECT ! Entscheidung der max. Tage im laufenden Monat
+000440           CASE MONAT%=1 OR MONAT%=3 OR MONAT%=5 OR MONAT%=7 OR MONAT%=8 OR MONAT%=10 OR MONAT%=12
+000450                M.TAGE% = 31
+000460           CASE MONAT%=4 OR MONAT%=6 OR MONAT%=9 OR MONAT%=11
+000470                M.TAGE% = 30
+000480           OTHERWISE           ! Februar
+000490                JAHR$ = DATE$(0)[7:10]           ! aktuelles Jahr
+000500                JAHR$ = STR$(VAL(JAHR$)/4)           ! Teile Jahr durch 4
+000510                SJAHR% = 0
+000520                IF SCH(1,JAHR$,".")=SJAHR%
+000530                     M.TAGE% = 29           ! Schaltjahr
+000540                ELSE 
+000550                     M.TAGE% = 28           ! Kommatazahl, kein Schaltjahr
+000560                     IFEND 
+000570           CEND 
+000580      SELECT AKTION$
+000590           CASE "list" ! Tage anzeigen
+000600 ! ggf. Vormonat löschen
+000610                KY7$ = "1"&FORMAT$(VAL(FKDNR$),"999999")&FORMAT$(VAL(BEWNR$),"999999")&DATE$(0)[7:10]&STR$(MONAT%-1)
+000620                GOSUB L7
+000630                IF NOT EOF(7) THEN GOSUB LOE7
+000640 ! aktueller Monat
+000650                KY7$ = "1"&FORMAT$(VAL(FKDNR$),"999999")&FORMAT$(VAL(BEWNR$),"999999")&DATE$(0)[7:10]&DATE$(0)[4:5]
+000660                GOSUB L7 \ UNLOCK #7 ! An-/ Abwensenheitstage lesen
+000670                IF EOF(7) ! Bewohner im akt. Monat noch nicht abgm. - alle Tage auf anwesend setzen
+000680                     FOR I% = 1 TO 31
+000690                          TAGNR$(I%) = "1"
+000700                          NEXT I%
+000710                     IFEND 
+000720                FOR I% = 1 TO M.TAGE%
+000730                     IF VAL(TAGNR$(I%))=0
+000740                          ANAB%(I%) = 0
+000750                          ABTAGE% = ABTAGE%+1
+000760                          IFEND 
+000770                     IF VAL(TAGNR$(I%))<>0
+000780                          ANAB%(I%) = 1
+000790                          ABTAGE% = ABTAGE%
+000800                          IFEND 
+000810                     IF ANAB%(I%)=1 THEN DA$(I%) = "checked" ELSE DA$(I%) = "unchecked disabled"
+000820                     CALL CGI.TEMPLATE.VAR("anab"&STR$(I%),STR$(ANAB%(I%)))
+000830                     CALL CGI.TEMPLATE.VAR("da"&STR$(I%),DA$(I%))
+000840                     CALL CGI.TEMPLATE.VAR("tagid"&STR$(I%),STR$(I%))
+000850                     CALL CGI.TEMPLATE.VAR("monats.tage"&STR$(I%),FORMAT$(I%,"99")&"-"&DATE$(0)[4:10])
+000860                     NEXT I%
+000870                CALL CGI.TEMPLATE.VAR("abtage",STR$(ABTAGE%))
+000880                CALL CGI.TEMPLATE.VAR("monats.name",MONATS.NAMEN$(VAL(DATE$(0)[4:5])))
+000890                INFO.DA$ = "<td bgcolor=""#66CC00""><input type=""checkbox"" checked /></td><td bgcolor=""#66CC00""><font face=""verdana"" size=""2"">&nbsp;angemeldet&nbsp;</font></td>"
+000900                INFO.NICHT.DA$ = "<td bgcolor=""#ff3333""><input type=""checkbox"" unchecked /></td><td bgcolor=""#ff3333""><font face=""verdana"" size=""2"">&nbsp;abgemeldet&nbsp;</font></td>"
+000910                BUTTON.SAVE$ = "<input type=""submit"" class=""button"" name=""save"" value=""Speichern"" />"
+000920                CALL CGI.TEMPLATE.VAR("info.da",INFO.DA$)
+000930                CALL CGI.TEMPLATE.VAR("info.nicht.da",INFO.NICHT.DA$)
+000940                CALL CGI.TEMPLATE.VAR("button.save",BUTTON.SAVE$)
+000950           CASE "save" ! Auswahl des Benutzers speichern
+000960                FOR I% = 1 TO M.TAGE%
+000970                     CALL CGI.GET("tagnr"&STR$(I%),ADDROF(TAGNR$(I%)))
+000980                     IF VAL(TAGNR$(I%))<>0 THEN GES.TAGE% = GES.TAGE% ELSE GES.TAGE% = GES.TAGE%+1
+000990                     NEXT I%
+001000                CALL CGI.GET("abtage",ADDROF(ABTAGE$))
+001010                KY7$ = "1"&FORMAT$(VAL(FKDNR$),"999999")&FORMAT$(VAL(BEWNR$),"999999")&DATE$(0)[7:10]&DATE$(0)[4:5]
+001020                GOSUB S7 ! An-/Abwesenheitstage schreiben
+001030                CLOSE #7
+001040                SAVE.MSG$ = "<i>Daten gespeichert!</i> <br /> Schlie&szlig;en Sie jetzt das Fenster und klicken Sie <br /> im darunter liegenden Fenster auf <strong>Absenden</strong>, damit die Daten &uuml;bernommen werden k&ouml;nnen!"
+001050                CALL CGI.TEMPLATE.VAR("save.msg",SAVE.MSG$)
+001060           CEND 
+001070      CALL CGI.TEMPLATE.VAR("kdnr",FKDNR$)
+001080      CALL CGI.TEMPLATE.VAR("sid",SID$)
+001090      CALL CGI.TEMPLATE.VAR("bewnr",BEWNR$)
+001100      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/bewo_kota.tpl")
+001110      END \ QUIT 
+001120 REM ------------------------------------------------
+001130 ERROR.ROUT:
+001140      RC$ = FN.WFKIFEHL$("bewo_kota",ERR,ERL,CRC$,FL%)
+001150 REM ------------------------------------------------
+001160 L7: ! An-/ Abwesenheitstage lesen
+001170      FL% = 7 \ READ #7,KY7$:GES.TAGE%,E.TAGE%,TAGNR$(1),TAGNR$(2),TAGNR$(3),TAGNR$(4),TAGNR$(5),TAGNR$(6),TAGNR$(7),TAGNR$(8),TAGNR$(9),TAGNR$(10),TAGNR$(11),TAGNR$(12),TAGNR$(13),TAGNR$(14),TAGNR$(15),TAGNR$(16),TAGNR$(17),TAGNR$(18),TAGNR$(19),TAGNR$(20),TAGNR$(21),TAGNR$(22),TAGNR$(23),TAGNR$(24),TAGNR$(25),TAGNR$(26),TAGNR$(27),TAGNR$(28),TAGNR$(29),TAGNR$(30),TAGNR$(31) \ CLEAR FL%
+001180      RETURN 
+001190 REM ------------------------------------------------
+001200 S7: ! An-/ Abwesenheitstage schreiben
+001210 REM **** Berechnung der Anzahl der gerade abgemeldeten Tage
+001220 REM **** im Vergleich zu der Gesamtzahl der abgemeldeten Tage.
+001230 REM **** ABTAGE$ = Anzahl der Abgemeldeten Tage der letzen Abmeldung
+001240 REM **** GES.TAGE% = Anzahl ALLER abgemeldeten Tage in einem Monat
+001250 REM **** ABTAGE$=0 war noch nicht abgemeldet, alsoTage der letzten Abmeldung auf die Tage der jetzigen Abmeldung setzen
+001260 
+001270      IF VAL(ABTAGE$)=0 THEN E.TAGE% = GES.TAGE%
+001280      IF VAL(ABTAGE$)<>0 THEN E.TAGE% = GES.TAGE%-VAL(ABTAGE$)
+001290      FL% = 7 \ WRITE #7,KY7$:GES.TAGE%,E.TAGE%,VAL(TAGNR$(1)),VAL(TAGNR$(2)),VAL(TAGNR$(3)),VAL(TAGNR$(4)),VAL(TAGNR$(5)),VAL(TAGNR$(6)),VAL(TAGNR$(7)),VAL(TAGNR$(8)),VAL(TAGNR$(9)),VAL(TAGNR$(10)),VAL(TAGNR$(11)),VAL(TAGNR$(12)),VAL(TAGNR$(13)),VAL(TAGNR$(14)),VAL(TAGNR$(15)),VAL(TAGNR$(16)),VAL(TAGNR$(17)),VAL(TAGNR$(18)),VAL(TAGNR$(19)),VAL(TAGNR$(20)),VAL(TAGNR$(21)),VAL(TAGNR$(22)),VAL(TAGNR$(23)),VAL(TAGNR$(24)),VAL(TAGNR$(25)),VAL(TAGNR$(26)),VAL(TAGNR$(27)),VAL(TAGNR$(28)),VAL(TAGNR$(29)),VAL(TAGNR$(30)),VAL(TAGNR$(31)),DATE$(0),TIME$(0) \ CLEAR FL%
+001300      RETURN 
+001310 REM ------------------------------------------------
+001320 LOE7: ! An-/Abwensenheitstage löschen
+001330      DELETE #7,KY7$
+001340      RETURN 

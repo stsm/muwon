@@ -1,0 +1,206 @@
+000010 REM Programm zur Anzeige der heim_ar_aus.tpl Datei
+000020 REM Artikellisten Ausgabe
+000030 REM Schmidt - 09.01.2009 (Programmerstellung)
+000040 REM Schmidt - 16.02.2009 (Farbgebung der Tabellen)
+000050 
+000060 REM *******************************************************
+000070      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFALLGEM.INC" ! allgemeine Funktionen
+000110      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000120 
+000130      OPTION VERSION 1.0.02,"Mittermeier & Ungelenk GmbH"
+000140 
+000150      ON ERROR GOTO ERROR.ROUT
+000160 
+000170 REM *******************************************************
+000180      CALL CGI.INIT
+000190      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000210      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000220      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000230      CALL CGI.GET("sort",ADDROF(SORT$)) ! Sortierungsparameter
+000240 REM *******************************************************
+000250 REM ************ Session prüfen ***************
+000260      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000270      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000280 REM *******************************************
+000290 
+000300      DIM S.LFNR$(1000),S.ARTBEZ$(1000),S.LISTE$(1000),S.LISTE5$(1000),S.LISTE6$(1000),S.LISTE7$(1000),S.LISTE8$(1000)
+000310      DIM F.LFNR$(1000),F.ARTBEZ$(1000),F.LISTE$(1000),F.LISTE5$(1000),F.LISTE6$(1000),F.LISTE7$(1000),F.LISTE8$(1000)
+000320      DIM S.SORT%(1000),S.ARTNR(1000),F.SORT%(1000),F.ARTNR(1000)
+000330 
+000340 REM *******************************************************
+000350      FONT$ = "<font color=""#000000"" face=""verdana"" size=""2"">" ! Schriftart
+000360      FORMA.SORT$ = "<form action=""/cgi.ops/heim_ar_aus"" method=""post"">"
+000370      SELECT.SORT$ = FN.FORM.SELECT$("sort",1)
+000380      SELECT.SORT.INHALT$(1) = FN.FORM.SELECT.OPTION$("1",0," nach Artikelnummer")
+000390      SELECT.SORT.INHALT$(2) = FN.FORM.SELECT.OPTION$("2",0,"nach Bezeichnung")
+000400      SELECT.SORT.INHALT$(3) = FN.FORM.SELECT.OPTION$("3",0,"nach aktueller Liste")
+000410      SELECT.SORT.INHALT$(4) = FN.FORM.SELECT.OPTION$("4",0,"nach Preisliste 5")
+000420      SELECT.SORT.INHALT$(5) = FN.FORM.SELECT.OPTION$("5",0,"nach Preisliste 6")
+000430      SELECT.SORT.INHALT$(6) = FN.FORM.SELECT.OPTION$("6",0,"nach Preisliste 7")
+000440      SELECT.SORT.INHALT$(7) = FN.FORM.SELECT.OPTION$("7",0,"nach Preisliste 8")
+000450      BUTTON.SORT$ = FN.FORM.BUTTON$("sort","Sortieren")
+000460      FORME.SORT$ = "</form>"
+000470      PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000480      PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000490      PARA3$ = FN.FORM.HIDDEN$("sort",SORT$)
+000500      PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+000510      PARA5$ = FN.FORM.HIDDEN$("sid",SID$)
+000520      SELECT AKTION$
+000530           CASE "list"
+000540                IF FKDNR$=""
+000550                     MSG$(1) = "<li>Die Kundennummer darf nicht kleiner/gleich Null sein!</li>"
+000560                     GOTO FEHLER
+000570                     IFEND 
+000580                FL% = 21 \ OPEN #21:"/ARSTEU.REI", INPUT INDEXED \ CLEAR FL% !Artikelstamm
+000590           REM Sonderpreise lesen - Anfang
+000600                KY21$ = "1"&FKDNR$
+000610                GOSUB L21 ! ersten Satz
+000620                GOSUB L221      ! nächsten Satz lesen
+000630                WHILE KY21$[2:7]=FKDNR$
+000640                     IF EOF(21) THEN BREAK 
+000650                     I% = I%+1
+000660                     S.LFNR$(I%) = STR$(I%)
+000670                     CALL UMLAUTE.ZU.HTML(ASBE$)
+000680                     S.ARTBEZ$(I%) = HTML.CODE$
+000690                     S.ARTNR(I%) = ASNR
+000700                     IF TRIM$(AS10$)<>""
+000710                          AS10$ = AS10$[1:2]&"-"&AS10$[3:4]&"-"&AS10$[5:6]
+000720                          IFEND 
+000730                     S.LISTE$(I%) = STR$(AS2%)
+000740                     S.LISTE5$(I%) = FORMAT$(EASP5/100,"###.##-")
+000750                     S.LISTE6$(I%) = FORMAT$(EASP6/100,"###.##-")
+000760                     S.LISTE7$(I%) = FORMAT$(EASP7/100,"###.##-")
+000770                     S.LISTE8$(I%) = FORMAT$(EASP8/100,"###.##-")
+000780                     GOSUB L221
+000790                     WEND 
+000800                IF I%>0 ! nur neu dimensioieren, wenn daten vorhanden
+000810                     REDIM S.LFNR$(I%) \ REDIM S.ARTBEZ$(I%) \ REDIM S.ARTNR(I%)
+000820                     REDIM S.LISTE$(I%) \ REDIM S.LISTE5$(I%) \ REDIM S.LISTE6$(I%)
+000830                     REDIM S.LISTE7$(I%) \ REDIM S.LISTE8$(I%)
+000840                     REDIM S.SORT%(I%)
+000850                     IFEND 
+000860           REM Sonderpreise lesen - ENDE
+000870 
+000880           REM freie Artikel lesen - Anfang
+000890                KY21$ = "1"
+000900                GOSUB L21 ! ersten Satz
+000910                GOSUB L221      ! nächsten Satz lesen
+000920                WHILE KY21$[2:7]="000000"
+000930                     IF EOF(21) THEN BREAK 
+000940                     I2% = I2%+1
+000950                     F.LFNR$(I2%) = STR$(I2%)
+000960                     CALL UMLAUTE.ZU.HTML(ASBE$)
+000970                     F.ARTBEZ$(I2%) = HTML.CODE$
+000980                     F.ARTNR(I2%) = ASNR
+000990                     IF TRIM$(AS10$)<>""
+001000                          AS10$ = AS10$[1:2]&"-"&AS10$[3:4]&"-"&AS10$[5:6]
+001010                          IFEND 
+001020                     F.LISTE$(I2%) = STR$(AS2%)
+001030                     F.LISTE5$(I2%) = FORMAT$(EASP5/100,"###.##-")
+001040                     F.LISTE6$(I2%) = FORMAT$(EASP6/100,"###.##-")
+001050                     F.LISTE7$(I2%) = FORMAT$(EASP7/100,"###.##-")
+001060                     F.LISTE8$(I2%) = FORMAT$(EASP8/100,"###.##-")
+001070                     GOSUB L221
+001080                     WEND 
+001090                CLOSE #21
+001100                REDIM F.LFNR$(I2%) \ REDIM F.ARTBEZ$(I2%) \ REDIM F.ARTNR(I2%)
+001110                REDIM F.LISTE$(I2%) \ REDIM F.LISTE5$(I2%) \ REDIM F.LISTE6$(I2%)
+001120                REDIM F.LISTE7$(I2%) \ REDIM S.LISTE8$(I2%)
+001130                REDIM F.SORT%(I2%)
+001140           REM Sonderpreise lesen - ENDE
+001150 ! *********** ABSCHLIESSENDE AKTIONEN VOR SEITENGENERIERUNG ***********
+001160 
+001170                SELECT SORT$
+001180                     CASE "1" ! nach Artikelnummer sort.
+001190                          MAT S.SORT% = SORT(S.ARTNR)
+001200                          MAT F.SORT% = SORT(F.ARTNR)
+001210                     CASE "2" ! nach Bezeichnung sort.
+001220                          MAT S.SORT% = SORT(S.ARTBEZ$)
+001230                          MAT F.SORT% = SORT(F.ARTBEZ$)
+001240                     CASE "3" ! Preisliste
+001250                          MAT S.SORT% = SORT(S.LISTE$)
+001260                          MAT F.SORT% = SORT(F.LISTE$)
+001270                     CASE "4" ! nach Liste 5
+001280                          MAT S.SORT% = SORT(S.LISTE5$)
+001290                          MAT F.SORT% = SORT(F.LISTE5$)
+001300                     CASE "5" ! nach Liste 6
+001310                          MAT S.SORT% = SORT(S.LISTE6$)
+001320                          MAT F.SORT% = SORT(F.LISTE6$)
+001330                     CASE "6" ! nach Liste 7
+001340                          MAT S.SORT% = SORT(S.LISTE7$)
+001350                          MAT F.SORT% = SORT(F.LISTE7$)
+001360                     CASE "7" ! nach Liste 8
+001370                          MAT S.SORT% = SORT(S.LISTE8$)
+001380                          MAT F.SORT% = SORT(F.LISTE8$)
+001390                     OTHERWISE 
+001400                          PRINT "Jo - hier stimmt wat nich" \ STOP 
+001410                     CEND 
+001420                IF I%<=0 THEN GOTO 1490 ! keine Sonderpreise vorhanden
+001430                FOR SORTLAUF% = 1 TO I%
+001440                     HVAR% = HVAR%+1      ! Hilfsvariable für neue Pos.-nummer
+001450                     IF MOD(SORTLAUF%,2)=1 THEN FARBE$ = "#ccccbb"
+001460                     IF MOD(SORTLAUF%,2)=0 THEN FARBE$ = "#ffffff"
+001470                     CALL CGI.TEMPLATE.VAR("sonder.art"&STR$(HVAR%),"<tr bgcolor="""&FARBE$&"""><td align=""center"">"&FONT$&S.LFNR$(HVAR%)&"</td><td align=""center"">"&FONT$&STR$(S.ARTNR(S.SORT%(SORTLAUF%)))&"</td><td align=""left"">"&FONT$&S.ARTBEZ$(S.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&S.LISTE$(S.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&S.LISTE5$(S.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&S.LISTE6$(S.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&S.LISTE7$(S.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&S.LISTE8$(S.SORT%(SORTLAUF%))&"</td></td></tr></font>")
+001480                     NEXT SORTLAUF%
+001490                HVAR% = 0
+001500                FOR SORTLAUF% = 1 TO I2%
+001510                     HVAR% = HVAR%+1      ! Hilfsvariable für neue Pos.-nummer
+001520                     IF MOD(SORTLAUF%,2)=1 THEN FARBE$ = "#ccccbb"
+001530                     IF MOD(SORTLAUF%,2)=0 THEN FARBE$ = "#ffffff"
+001540                     CALL CGI.TEMPLATE.VAR("freie.art"&STR$(HVAR%),"<tr bgcolor="""&FARBE$&"""><td align=""center"">"&FONT$&F.LFNR$(HVAR%)&"</td><td align=""center"">"&FONT$&STR$(F.ARTNR(F.SORT%(SORTLAUF%)))&"</td><td align=""left"">"&FONT$&F.ARTBEZ$(F.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&F.LISTE$(F.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&F.LISTE5$(F.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&F.LISTE6$(F.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&F.LISTE7$(F.SORT%(SORTLAUF%))&"</td><td align=""center"">"&FONT$&F.LISTE8$(F.SORT%(SORTLAUF%))&"</td></td></tr></font>")
+001550                     NEXT SORTLAUF%
+001560                CLOSE #23
+001570                KD.SONDER% = I%
+001580                KD.FREIE.ART% = I2%
+001590                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001600                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+001610                CALL CGI.TEMPLATE.VAR("bewo.name",BEWONAME$)
+001620                CALL CGI.TEMPLATE.VAR("kd.sonder",STR$(KD.SONDER%))
+001630                CALL CGI.TEMPLATE.VAR("kd.freie.art",STR$(KD.FREIE.ART%))
+001640                CALL CGI.TEMPLATE.VAR("forma.sort",FORMA.SORT$)
+001650                CALL CGI.TEMPLATE.VAR("select.sort",SELECT.SORT$)
+001660                CALL CGI.TEMPLATE.VAR("select.sort.inhalt1",SELECT.SORT.INHALT$(1))
+001670                CALL CGI.TEMPLATE.VAR("select.sort.inhalt2",SELECT.SORT.INHALT$(2))
+001680                CALL CGI.TEMPLATE.VAR("select.sort.inhalt3",SELECT.SORT.INHALT$(3))
+001690                CALL CGI.TEMPLATE.VAR("select.sort.inhalt4",SELECT.SORT.INHALT$(4))
+001700                CALL CGI.TEMPLATE.VAR("select.sort.inhalt5",SELECT.SORT.INHALT$(5))
+001710                CALL CGI.TEMPLATE.VAR("select.sort.inhalt6",SELECT.SORT.INHALT$(6))
+001720                CALL CGI.TEMPLATE.VAR("select.sort.inhalt7",SELECT.SORT.INHALT$(7))
+001730                CALL CGI.TEMPLATE.VAR("button.sort",BUTTON.SORT$)
+001740                CALL CGI.TEMPLATE.VAR("forme.sort",FORME.SORT$)
+001750                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+001760                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+001770                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+001780                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+001790                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+001800                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001810                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/heim_ar_aus.tpl")
+001820                GOTO ENDE
+001830           OTHERWISE 
+001840                PRINT "Hacking attempt!"
+001850                STOP 
+001860           CEND 
+001870 ! ********************* HAUPTPROGRAMM ENDE ***********************
+001880 FEHLER:
+001890      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001900      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001910      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001920      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+001930 ENDE:
+001940      END 
+001950 REM ------------------------------------------------
+001960 ERROR.ROUT:
+001970      RC$ = FN.WFKIFEHL$("heim_ar_aus",ERR,ERL,CRC$,FL%)
+001980 
+001990 REM *******************************************************
+002000 L21: ! Artikelstamm
+002010      FL% = 21 \ READ #21,KY21$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$,ASSW$,AS3%,AS4%,AS5%,AS6%,AS7%,EASP1,EASP2,EASP3,EASP4,EASP5,EASP6,EASP7,EASP8,AS8%,AS9%,AS10$,XX$,XX$,FK1% \ UNLOCK #21
+002020      RETURN 
+002030 REM *******************************************************
+002040 L221: ! Artikelstamm nächsten Satz
+002050      FL% = 21 \ READNEXT #21,KY21$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$,ASSW$,AS3%,AS4%,AS5%,AS6%,AS7%,EASP1,EASP2,EASP3,EASP4,EASP5,EASP6,EASP7,EASP8,AS8%,AS9%,AS10$,XX$,XX$,FK1% \ UNLOCK #21
+002060      RETURN 

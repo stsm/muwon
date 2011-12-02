@@ -1,0 +1,88 @@
+000010 REM Programm zur Anzeige und zum Updateprozess
+000020 REM 27.10.2008 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFFOOTER.INC" ! Fuﬂzeile
+000070 
+000080      ON ERROR GOTO ERROR.ROUT
+000090 
+000100      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000110      DIM LOG$(1000)
+000120      CALL CGI.INIT
+000130      CALL CGI.GET("user",ADDROF(RUSER$)) ! Benutzername
+000140      CALL CGI.GET("passwd",ADDROF(RPASSWD$)) ! Passwort
+000150      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion
+000160      USER$ = "mitter" \ PASSWD$ = "abfahrt"
+000170      SELECT AKTION$
+000180           CASE "Login"
+000190                IF TRIM$(RUSER$)<>USER$ OR TRIM$(RPASSWD$)<>PASSWD$
+000200                     MSG$(1) = "Die von Ihnen eingegebenen Daten sind nicht korrekt!"
+000210                     IMG$ = "<img src=""../global/pics/error.png"">"
+000220                     CALL CGI.TEMPLATE.VAR("img",IMG$)
+000230                     CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000240                     CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000250                     END \ QUIT 
+000260                     IFEND 
+000270                UPTXT1$ = "<td><font face=""verdana"" size=""2"">Updatedatei :</font></td>"
+000280                UPINP$ = "<td><input class=""input"" type=""file"" name=""updatefile"" /></td>"
+000290                UPTXT2$ = " <td><font face=""verdana"" size=""2"">Aktion :</font></td>"
+000300                UPBUT$ = "<td><input type=""submit"" name=""aktion"" value=""Hochladen"" /></td>"
+000310                UPMSG$ = "1. Die Updatedatei hochladen! Diese muss ein THEOS ""compressed file"" (cmp) sein!"
+000320                CALL CGI.TEMPLATE.VAR("msg",UPMSG$)
+000330                CALL CGI.TEMPLATE.VAR("text1",UPTXT1$)
+000340                CALL CGI.TEMPLATE.VAR("button1",UPINP$)
+000350                CALL CGI.TEMPLATE.VAR("text2",UPTXT2$)
+000360                CALL CGI.TEMPLATE.VAR("button2",UPBUT$)
+000370           CASE "Hochladen"
+000380                CALL CGI.WRITE.FILE("updatefile","/UPDATE.CMP")
+000390                SELECT CSI.RETURN.CODE
+000400                     CASE 0
+000410                          UPMSG$ = "2. Datei erfolgreich hochgeladen! F&uuml;hren Sie jetzt das Update aus..."
+000420                          UPBUT$ = "<td><input type=""submit"" name=""aktion"" value=""Updaten"" /></td>"
+000430                          CALL CGI.TEMPLATE.VAR("msg",UPMSG$)
+000440                          CALL CGI.TEMPLATE.VAR("button1",UPBUT$)
+000450                     OTHERWISE 
+000460                          MSG$(1) = "Hochladen der Datei fehlgeschlagen!"
+000470                          IMG$ = "<img src=""../global/pics/error.png"">"
+000480                          CALL CGI.TEMPLATE.VAR("img",IMG$)
+000490                          CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000500                          CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000510                          END \ QUIT 
+000520                     CEND 
+000530           CASE "Updaten"
+000540                SYSTEM "expand update.cmp s (rep noq > /update.log:m"
+000550                SELECT CSI.RETURN.CODE
+000560                     CASE 0
+000570                          UPMSG$ = "Update erfolgreich abgeschlossen!"
+000580                          CALL CGI.TEMPLATE.VAR("msg",UPMSG$)
+000590                     OTHERWISE 
+000600                          MSG$(1) = "Update fehlgeschlagen! ["&STR$(CSI.RETURN.CODE)&"]"
+000610                          IMG$ = "<img src=""../global/pics/error.png"">"
+000620                          CALL CGI.TEMPLATE.VAR("img",IMG$)
+000630                          CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000640                          CALL CGI.TEMPLATE("/wwwroot/opa/error.asp")
+000650                          END \ QUIT 
+000660                     CEND 
+000670                OPEN #1:"/update.log:m", INPUT SEQUENTIAL 
+000680                WHILE NOT EOF(1)
+000690                     I% = I%+1
+000700                     LINPUT #1:LOG$(I%)
+000710                     WEND 
+000720                CLOSE #1
+000730                FOR X% = 0 TO I%
+000740                     CALL CGI.TEMPLATE.VAR("log"&STR$(X%),LOG$(X%))
+000750                     NEXT X%
+000760                LEER$ = "&nbsp;&nbsp;"
+000770                FONTA$ = "<font face=""verdana"" size=""2"">"
+000780                FONTE$ = "</font>"
+000790                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000800                CALL CGI.TEMPLATE.VAR("fonta",FONTA$)
+000810                CALL CGI.TEMPLATE.VAR("fonte",FONTE$)
+000820           CEND 
+000830      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/update.tpl")
+000840 ENDE:
+000850      END \ QUIT 
+000860 REM ------------------------------------------------
+000870 ERROR.ROUT:
+000880      RC$ = FN.WFKIFEHL$("update",ERR,ERL,CRC$,FL%)

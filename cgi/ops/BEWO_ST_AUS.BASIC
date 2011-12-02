@@ -1,0 +1,213 @@
+000010 REM Programm zur Anzeige der bewo_st_aus.tpl Datei
+000020 REM 05.01.2009 - Schmidt (Programmerstellung)
+000060 
+000070      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000110 
+000120      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000130 
+000140      ON ERROR GOTO ERROR.ROUT
+000150 
+000160 REM *******************************************************
+000170      CALL CGI.INIT
+000180      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000190      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000191      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000210      CALL CGI.GET("methode",ADDROF(METHODE$)) ! Bewo.-nr / Bewo.-name
+000220      CALL CGI.GET("namen",ADDROF(GBEWONA$)) ! gesucht über Namenliste
+000230      CALL CGI.GET("nummer",ADDROF(GBEWONR$)) ! gesucht über Nummernliste
+000240      CALL CGI.GET("suchna",ADDROF(GBEWOSU$)) ! gesucht über Suchnamen
+000250      CALL CGI.GET("gef.bewo",ADDROF(MAXBEWO$)) ! Anzahl der gef. Bewo.
+000260 REM *******************************************************
+000270 REM ************ Session prüfen ***************
+000290      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000300 REM *******************************************
+000310 
+000320      DIM SACKNR$(12),SACKSEQ$(12),SACKEIN$(12),SACKAUS$(12)
+000330      TRA$ = "<tr>" \ TRE$ = "</tr>" ! Tabellenzeile
+000340      TDA$ = "<td>" \ TDE$ = "</td>" ! Tabellenspalte
+000350      UMBR$ = "<br />" ! Zeilenumbruch
+000360      FONTA$ = "<font face=""verdana"" size=""2"">"
+000370      FONTE$ = "</font>"
+000380      ZAHL.TEXT$ = FONTA$&"<strong>Zahleradresse des Bewohners</strong>"&FONTE$
+000390      ZAHL.TAB.ANFANG$ = "<table align=""left"" border=""0"" cellpadding=""1"" cellspacing=""10"">"
+000400      ZAHL.TAB.ENDE$ = "</table>"
+000410      SACK.TEXT$ = FONTA$&"<strong>Bewohners&auml;cke</strong>"&FONTE$
+000420      SACK.TAB.ANFANG$ = "<table align=""center"" border=""0"" cellpadding=""1"" cellspacing=""10"">"
+000430      SACK.TAB.KOPF$ = "<tr><td>"&FONTA$&"Sack.-Nr.:"&FONTE$&"</td><td>"&FONTA$&"Seq."&FONTE$&"</td><td>"&FONTA$&"Eingang"&FONTE$&"</td><td>"&FONTA$&"Ausgang"&FONTE$&"</td></tr>"
+000440      SACK.TAB.ENDE$ = "</table>"
+000530      SELECT AKTION$
+000540           CASE "list"
+000550                IF METHODE$="nummer" THEN EINGABE$ = GBEWONR$ ! übernahme
+000560                IF METHODE$="namen" THEN EINGABE$ = GBEWONA$ ! Übernahme
+000570                IF METHODE$="suchna" THEN EINGABE$ = GBEWOSU$ ! Übernahme
+000580                IF VAL(EINGABE$)<=0 THEN GOTO FEHLER
+000590                IF VAL(EINGABE$)>0
+000600                     FL% = 3 \ OPEN #3:"/BEWOH3.REI", INPUT INDEXED ! Wäschesack
+000610                     FL% = 11 \ OPEN #11:"/BEWOH1.REI", INPUT INDEXED ! Bewo.-stamm
+000620                     FL% = 21 \ OPEN #21:"/BEWO21.REI", INPUT INDEXED ! Bewo.-st.
+000630                     FL% = 22 \ OPEN #22:"/BEWO22.REI", INPUT INDEXED ! BC-Index
+000640                     KY11$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+000650                     GOSUB L11 ! Bewohnerstamm lesen
+000660                     IF EOF(11) THEN GOTO FEHLER
+000670                     CLEAR EINGANG$
+000680                     KY22$ = "1"&FKDNR$&FORMAT$(VAL(EINGABE$),"999999")
+000690                     GOSUB L22 \ UNLOCK #22 ! Leseanfang BEWO22.REI
+000700                     GOSUB L221 \ UNLOCK #22 ! nächsten BC-Index lesen BEWO22.REI
+000710                     IF EOF(22) OR KY22$[2:13]<>FKDNR$&FORMAT$(VAL(EINGABE$),"999999") THEN GOTO 770
+000720                     KY21$ = "1"&KY22$[20:31]
+000730                     GOSUB L21 \ UNLOCK #21 ! Barcodeartikel lesen BEWO21.REI
+000740                     IF NOT DTE$(TR54$) THEN GOTO 700 ! kein Eingangsdatum
+000750                     IF EINGANG$="" OR DAY(EINGANG$[1:4]&"20"&EINGANG$[5:6])<DAY(TR54$[1:4]&"20"&TR54$[5:6]) THEN EINGANG$ = TR54$ ! letzter Eingang
+000760                     GOTO 700
+000770                     THEMA$ = "Stammdaten des ausgewählten Bewohners"
+000780                     CALL CGI.TEMPLATE.VAR("bewo.nr",STR$(ASNR))
+000790                     CALL CGI.TEMPLATE.VAR("bewo.name",ASBE$)
+000800                     CALL CGI.TEMPLATE.VAR("bewo.such",ASSW$)
+000810                     CALL CGI.TEMPLATE.VAR("bewo.pflege",ASP1$)
+000820                     CALL CGI.TEMPLATE.VAR("bewo.zimmer",ASP2$)
+000830                     CALL CGI.TEMPLATE.VAR("bewo.station",ASP3$[1:5])
+000840                     CALL CGI.TEMPLATE.VAR("bewo.sperre",ASP3$[6:6]&" "&SPERRE$)
+000850                     CALL CGI.TEMPLATE.VAR("bewo.zahlart",ASP3$[8:8]&" "&ZAHLART$)
+000860                     CALL CGI.TEMPLATE.VAR("bewo.eingang",DTE$(EINGANG$))
+000870                     CALL CGI.TEMPLATE.VAR("bewo.lebels",ASP3$[42:47])
+000880                     CALL CGI.TEMPLATE.VAR("bewo.lebeda",DTE$(ASP3$[48:53]))
+000890                     CALL CGI.TEMPLATE.VAR("bewo.opas",ASP3$[54:68])
+000900                     CALL CGI.TEMPLATE.VAR("bewo.sprei",ASP3$[69:69]&" "&SPREI$)
+000910                     CALL CGI.TEMPLATE.VAR("bewo.anpfta",DTE$(ASP3$[70:75]))
+000920                     CALL CGI.TEMPLATE.VAR("bewo.abpfta",DTE$(ASP3$[76:81]))
+000930                     CALL CGI.TEMPLATE.VAR("bewo.kota",ASP3$[82:83])
+000940                     CALL CGI.TEMPLATE.VAR("bewo.erst",ASP4$)
+000950                     CALL CGI.TEMPLATE.VAR("bewo.abrech",STR$(ASP7%)&" "&ABRECH$)
+000960                     CALL CGI.TEMPLATE.VAR("bewo.beginn",DTE$(ASP3$[30:35]))
+000970                     CALL CGI.TEMPLATE.VAR("bewo.ende",DTE$(ASP3$[36:41]))
+000980                     CALL CGI.TEMPLATE.VAR("bewo.kurz",ASP3$[85:85]&" "&KURZ$)
+001140                     KY3$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999") ! Schlüssel für Wäschesackbewohner
+001150                     GOSUB L3 ! Bewohnerwäschesack lesen
+001160                     GOSUB L31 ! nächsten Bewohnerwäschesack lesen
+001170                     IF KY3$[8:13]<>FORMAT$(VAL(EINGABE$),"999999") OR EOF(3) THEN GOTO 1240
+001180                     I% = I%+1 ! Zähler fürs Array
+001190                     SACKNR$(I%) = SAC1$[11:12]
+001200                     SACKSEQ$(I%) = STR$(SAC7%)
+001210                     SACKEIN$(I%) = DTE$(SAC10$)
+001220                     SACKAUS$(I%) = DTE$(SAC11$)
+001230                     GOTO 1160! nächsten Satz
+001240                     FOR J% = 1 TO I%
+001250                          CALL CGI.TEMPLATE.VAR("sack.inhalt"&STR$(J%),"<tr><td>"&FONTA$&SACKNR$(J%)&FONTE$&"</td><td>"&FONTA$&SACKSEQ$(J%)&FONTE$&"</td><td>"&FONTA$&SACKEIN$(J%)&FONTE$&"</td><td>"&FONTA$&SACKAUS$(J%)&FONTE$&"</td></tr>")
+001260                          NEXT J%
+001270                     CALL CGI.TEMPLATE.VAR("sack.text",SACK.TEXT$)
+001280                     CALL CGI.TEMPLATE.VAR("sack.tab.anfang",SACK.TAB.ANFANG$)
+001290                     CALL CGI.TEMPLATE.VAR("sack.tab.kopf",SACK.TAB.KOPF$)
+001300                     CALL CGI.TEMPLATE.VAR("sack.tab.ende",SACK.TAB.ENDE$)
+001320                     IF VAL(ASP3$[8:8])=2 OR VAL(ASP3$[8:8])=3 ! Zahlart ist Bankeinzug/Überweisung
+001330                          FL% = 10 \ OPEN #10:"/BEWO10.REI", INPUT INDEXED ! Zahleradresse für Bewohner
+001340                          KY10$ = "1"&FORMAT$(VAL(KDNR$),"999999")&FORMAT$(VAL(EINGABE$),"999999")
+001350                          GOSUB L10 ! Zahleradresse lesen
+001360                          ZAHL.NAME1.INHALT$ = FONTA$&TRIM$(BKA1$)&FONTE$
+001370                          ZAHL.NAME2.INHALT$ = FONTA$&TRIM$(BKA2$)&FONTE$
+001380                          ZAHL.NAME3.INHALT$ = FONTA$&TRIM$(BKA3$)&FONTE$
+001390                          ZAHL.STR.INHALT$ = FONTA$&TRIM$(BKST$)&FONTE$
+001400                          ZAHL.PLZ.INHALT$ = FONTA$&STR$(BKPL)&FONTE$
+001410                          ZAHL.ORT.INHALT$ = FONTA$&TRIM$(BKOR$)&FONTE$
+001420                          ZAHL.BANK.INHALT$ = FONTA$&TRIM$(BK1$)&FONTE$
+001430                          ZAHL.KTO.INHALT$ = FONTA$&STR$(BK3)&FONTE$
+001440                          ZAHL.BLZ.INHALT$ = FONTA$&STR$(BK2)&FONTE$
+001450                          CALL CGI.TEMPLATE.VAR("zahl.name1.inhalt",ZAHL.NAME1.INHALT$)
+001460                          CALL CGI.TEMPLATE.VAR("zahl.name2.inhalt",ZAHL.NAME2.INHALT$)
+001470                          CALL CGI.TEMPLATE.VAR("zahl.name3.inhalt",ZAHL.NAME3.INHALT$)
+001480                          CALL CGI.TEMPLATE.VAR("zahl.str.inhalt",ZAHL.STR.INHALT$)
+001490                          CALL CGI.TEMPLATE.VAR("zahl.plz.inhalt",ZAHL.PLZ.INHALT$)
+001500                          CALL CGI.TEMPLATE.VAR("zahl.ort.inhalt",ZAHL.ORT.INHALT$)
+001510                          CALL CGI.TEMPLATE.VAR("zahl.bank.inhalt",ZAHL.BANK.INHALT$)
+001520                          CALL CGI.TEMPLATE.VAR("zahl.kto.inhalt",ZAHL.KTO.INHALT$)
+001530                          CALL CGI.TEMPLATE.VAR("zahl.blz.inhalt",ZAHL.BLZ.INHALT$)
+001540                          CALL CGI.TEMPLATE.VAR("zahl.name1",FONTA$&"Zahlname 1....."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001550                          CALL CGI.TEMPLATE.VAR("zahl.name2",FONTA$&"Zahlname 2....."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001560                          CALL CGI.TEMPLATE.VAR("zahl.name3",FONTA$&"Zahlname 3....."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001570                          CALL CGI.TEMPLATE.VAR("zahl.str",FONTA$&"Strasse.........."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001580                          CALL CGI.TEMPLATE.VAR("zahl.plz",FONTA$&"Postleitzahl....."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001590                          CALL CGI.TEMPLATE.VAR("zahl.ort",FONTA$&"Ort................"&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001600                          CALL CGI.TEMPLATE.VAR("zahl.bank",FONTA$&"Bank.............."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001610                          CALL CGI.TEMPLATE.VAR("zahl.kto",FONTA$&"Kontonummer.."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001620                          CALL CGI.TEMPLATE.VAR("zahl.blz",FONTA$&"Bankleitzahl....."&FONTE$&"</td><td>"&FONTA$&":"&FONTE$)
+001630                          CALL CGI.TEMPLATE.VAR("tra",TRA$)
+001640                          CALL CGI.TEMPLATE.VAR("tre",TRE$)
+001650                          CALL CGI.TEMPLATE.VAR("tda",TDA$)
+001660                          CALL CGI.TEMPLATE.VAR("tde",TDE$)
+001670                          CALL CGI.TEMPLATE.VAR("zahl.text",ZAHL.TEXT$)
+001680                          CALL CGI.TEMPLATE.VAR("zahl.tab.anfang",ZAHL.TAB.ANFANG$)
+001690                          CALL CGI.TEMPLATE.VAR("zahl.tab.ende",ZAHL.TAB.ENDE$)
+001700                          IFEND 
+001710                     IFEND 
+001720                CALL CGI.TEMPLATE.VAR("umbr",UMBR$)
+001730                CALL CGI.TEMPLATE.VAR("thema",THEMA$)
+001740                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001741                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+001750                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001760                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/bewo_st_aus.tpl")
+001770                GOTO ENDE
+001780           CASE "print"
+001790                PRINT "Hier kommt demnaechst der Druck"
+001800                GOTO ENDE
+001810           OTHERWISE 
+001820                PRINT "Hacking attempt!"
+001830                STOP 
+001840           CEND 
+001850 FEHLER:
+001860      MSG$(1) = "<li>Der Bewohner wurde nicht gefunden!</li>"
+001870      MSG$(2) = "<li>Die Eingabe der Bewohnernummer ist kleiner oder gleich Null!</li>"
+001880      MSG$(3) = "<li>Die Eingabe der Bewohnernummer ist nicht numerisch!</li>"
+001890      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001900      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001910      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001920      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/fehler.tpl")
+001930 ENDE:
+001940      END \ QUIT 
+001950 REM ------------------------------------------------
+001960 ERROR.ROUT:
+001970      RC$ = FN.WFKIFEHL$("bewo_st_aus",ERR,ERL,CRC$,FL%)
+001980 REM ------------------------------------------------------
+001990 L3: ! Bewohnerwäschesack lesen
+002000      FL% = 3 \ READ #3,KY3$:WKY3$,SAC1$,SAC2$,SAC3$,SAC4,SAC5,SAC6,SAC7%,SAC8%,SAC9%,SAC10$,SAC11$,XX$,XX$ \ UNLOCK #3 \ CLEAR FL%
+002010      RETURN 
+002020 REM ------------------------------------------------------
+002030 L31: ! nächsten Satz Bewohnerwäschesack lesen
+002040      FL% = 3 \ READNEXT #3,KY3$:WKY3$,SAC1$,SAC2$,SAC3$,SAC4,SAC5,SAC6,SAC7%,SAC8%,SAC9%,SAC10$,SAC11$,XX$,XX$ \ UNLOCK #3 \ CLEAR FL%
+002050      RETURN 
+002060 REM ------------------------------------------------------
+002070 L10: ! Zahleradresse lesen
+002080      FL% = 10 \ READ #10,KY10$:BKFR%,BKNR,BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$ \ UNLOCK #10 \ CLEAR FL%
+002090      RETURN 
+002100 REM ------------------------------------------------------
+002110 L11: ! Bewohnerstamm lesen
+002120      CLEAR SPERRE$,ZAHLART$,SPREI$,ABRECH$,ETIAB$
+002130      FL% = 11 \ READ #11,KY11$:AS1%,AS2%,ZNR%,KNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,TEMP$,TEMP$ \ UNLOCK #11 \ CLEAR FL%
+002140      IF ASP3$[6:6]="0" THEN SPERRE$ = "<font color=""red"">nein</font>"
+002150      IF ASP3$[6:6]="1" THEN SPERRE$ = "<font color=""red"">gesperrt</font>"
+002160      IF ASP3$[6:6]="2" THEN SPERRE$ = "<font color=""red"">gestorben</font>"
+002170      IF ASP3$[6:6]="3" THEN SPERRE$ = "<font color=""red"">umgezogen</font>"
+002180      IF ASP3$[8:8]="0" THEN ZAHLART$ = "<font color=""red"">Standard</font>"
+002190      IF ASP3$[8:8]="1" THEN ZAHLART$ = "<font color=""red"">bar</font>"
+002200      IF ASP3$[8:8]="2" THEN ZAHLART$ = "<font color=""red"">Bankeinzug</font>"
+002210      IF ASP3$[8:8]="3" THEN ZAHLART$ = "<font color=""red"">&Uuml;berweisung</font>"
+002220      IF ASP3$[69:69]=" " THEN ASP3$[69:69] = "0" \ SPREI$ = "<font color=""red"">nein</font>"
+002230      IF ASP3$[69:69]="0" THEN SPREI$ = "<font color=""red"">nein</font>"
+002240      IF ASP3$[69:69]="1" THEN SPREI$ = "<font color=""red"">ja (Reinigung)</font>"
+002250      IF ASP3$[69:69]="2" THEN SPREI$ = "<font color=""red"">ja (Reinig+wOB)</font>"
+002260      IF ASP3$[85:85]="1" THEN KURZ$ = "<font color=""red"">ja</font>"
+002270      IF ASP3$[85:85]="0" THEN KURZ$ = "<font color=""red"">nein</font>"
+002280      IF ASP7%=0 THEN ABRECH$ = "<font color=""red"">Heim</font>"
+002290      IF ASP7%=1 THEN ABRECH$ = "<font color=""red"">Bewohner</font>"
+002300      RETURN 
+002310 L21: ! Barcodeartikel lesen BEWO21.REI
+002320      FL% = 21 \ READ #21,KY21$:AKY21$,TRKD,TRAR,TRBEWO,TR61$,TR62$,TR63$,TR64$,TR65$,TR66,TR67,TR68$,TR71,TR72$,TR73$,TR74%,TR75%,TR76%,TR77%,TR41,TR42,TR43,TR44,TR45,TR51$,TR52,TR53,TR54$,TR55$,TR90,TR91,TR92,TR93,TR94%,TR95%,TR96%,XTR97%,TR98$,TR99$,XX$ \ CLEAR FL%
+002330      RETURN 
+002340 L22: ! Index Barcodeartikel lesen BEWO22.REI
+002350      FL% = 22 \ READ #22,KY22$:AKY22$,XX1$,XX2$ \ CLEAR FL%
+002360      RETURN 
+002370 L221: ! nächsten Index Barcodeartikel lesen BEWO22.REI
+002380      FL% = 22 \ READNEXT #22,KY22$:AKY22$,XX1$,XX2$ \ CLEAR FL%
+002390      RETURN 

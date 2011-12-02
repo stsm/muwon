@@ -1,0 +1,181 @@
+000010 REM Programm zur Übernahme der Trägerbestellungen
+000020 REM 03.06.2009 - Schmidt (Programmerstellung)
+000030 REM 11.08.2009 - Schmidt (Handling 2. Mailempfänger)
+000040 
+000050      INCLUDE "CGI"
+000060      INCLUDE "EMAIL" ! Email Toolkit
+000070      INCLUDE "WFALLGEM.INC" ! allgemeine Funktionen
+000080      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000090      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000100      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000110 
+000120      OPTION VERSION 1.0.03,"Mitttermeier & Ungelenk GmbH"
+000130 
+000140      ON ERROR GOTO ERROR.ROUT
+000150 
+000160 REM *******************************************************
+000170      CALL CGI.INIT
+000180      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000190      CALL CGI.GET("sid",ADDROF(SID$))
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000210 REM *******************************************************
+000220      CALL CGI.GET("methode",ADDROF(METHODE$)) ! Namen/Nummer
+000230      CALL CGI.GET("namen",ADDROF(NAMEN$))
+000240      CALL CGI.GET("nummer",ADDROF(NUMMER$))
+000250      CALL CGI.GET("artikel",ADDROF(ARTNR$))
+000260      CALL CGI.GET("autogr",ADDROF(AUTOGR$))
+000270      CALL CGI.GET("mangr",ADDROF(MANGR$))
+000280      CALL CGI.GET("menge",ADDROF(MENGE$))
+000290      CALL CGI.GET("info",ADDROF(INFO$))
+000300 
+000310      INFO$ = FN.UMLAUTE.ZU.THEOS$(INFO$)
+000320 
+000330      IF METHODE$="namen" THEN TRAENR$ = NAMEN$ ! ggf Übernahme
+000340      IF METHODE$="nummer" THEN TRAENR$ = NUMMER$ ! ggf. Übernahme
+000350 
+000360      IF AUTOGR$[1:1]<>"0" AND TRIM$(MANGR$)="" ! eine Größe wurde ausgewählt und keine Manuelle Größe angegeben
+000370           GROESSE$ = AUTOGR$
+000380      ELSE  ! manuelle Größe wurde angegeben - hat Vorrang
+000390           GROESSE$ = MANGR$
+000400           IFEND 
+000410 
+000420 REM *******************************************************
+000430 REM ************ Session prüfen ***************
+000440      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000450      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000460 REM *******************************************
+000470      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite </font></a>"
+000480      NAVIGATION2$ = "<a href=""javascript:document.bk_idx.submit();""><img src=""../../global/pics/bk.png"" border=""0""><font face=""verdana"" size=""2"">zur&uuml;ck zu Tr&auml;ger </font></a>"
+000490      NAVIGATION.FORM$ = "<form action=""/cgi.opbk/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000500      NAVIGATION.FORM2$ = "<form action=""/cgi.opbk/bk_idx"" name=""bk_idx"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000510 
+000520      SELECT LCASE$(AKTION$)
+000530           CASE "bestellen"
+000540                FL% = 3 \ OPEN #3:"/WWWROOT/OPBK/PARAMET.OPBK", INPUT INDEXED ! Parameter
+000550                FL% = 4 \ OPEN #4:"/WWWROOT/EXPORT/TRAEBES.OPBK", OUTPUT INDEXED ! Bestelldatei
+000560                FL% = 5 \ OPEN #5:"/WWWROOT/OPBK/STAMMDA.OPBK", UPDATE INDEXED 
+000570                FL% = 11 \ OPEN #11:"/TRAE10.REI", INPUT INDEXED \ CLEAR FL% ! Trae.-stammdaten
+000580                FL% = 12 \ OPEN #12:"/ARSTEU.REI", INPUT INDEXED \ CLEAR FL% ! Artikelstamm
+000590                FL% = 13 \ OPEN #13:"/FISTAM.REI", INPUT INDEXED 
+000600                KY3$ = "1"&FKDNR$
+000610                KY5$ = "1BES"&FKDNR$
+000620                KY11$ = "1"&FKDNR$&FORMAT$(VAL(TRAENR$),"999999")
+000630                KY12$ = "1000000"&FORMAT$(VAL(ARTNR$),"999999")
+000640                GOSUB L5 \ UNLOCK #5
+000650                GOSUB L3 \ UNLOCK #3 ! Parameter lesen
+000660                GOSUB L11 \ UNLOCK #11 ! Trägerstamm lesen
+000670                GOSUB L12 \ UNLOCK #12 ! Artikelstamm lesen
+000680                IF BESMERK>=900000.0 THEN BESMERK = 0
+000690                BESMERK = BESMERK+1
+000700                KY4$ = "1BES"&FKDNR$&FORMAT$(BESMERK,"999999")
+000710                IF TRIM$(INFO$)="" THEN INFO$ = "keine Anmerkung"
+000720                WRITE #4,KY4$:FKDNR$,VAL(TRAENR$),VAL(ARTNR$),GROESSE$,VAL(MENGE$),INFO$,RES$,RES$,RES,RES,RES,RES%,RES%,RES%,DATE$(0),TIME$(0)
+000730                KY5$ = "1BES"&FKDNR$
+000740                GOSUB S5 !
+000750                CLOSE #3 \ CLOSE #4 \ CLOSE #5
+000760                KY13$ = "101"
+000770                FL% = 13 \ READ #13,KY13$:ZNR%,ZA1$,ZA2$,ZLA$,ZST$,ZPL,ZOR$,ZTE$,ZTX$,ZTXX$,TEMP$,TEMP$,ZF100$,ZF101$,ZF102$,ZF103$,ZF104$,ZF105$,ZF106$ \ UNLOCK #11 \ CLEAR FL%
+000780                KY13$ = "1KISS"
+000790                FL% = 13 \ READ #13,KY13$:MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$ \ UNLOCK #13 \ CLEAR FL%
+000800                CLOSE #13
+000810                IF EMAIL%=1 AND TRIM$(ZF105$)<>"" ! Email Protokoll an Wäscherei
+000820                     FL% = 10 \ OPEN #10:"/KUSTWA.REI", INPUT INDEXED 
+000830                     FL% = 14 \ OPEN #14:"/WWWROOT/OPBK/SETTING.OPBK", INPUT INDEXED 
+000840                     KY10$ = "1"&FKDNR$
+000850                     KY14$ = "1"&FKDNR$
+000860                     GOSUB L10 ! Kundenstamm Wäscherei lesen
+000870                     GOSUB L14 ! Will der Kunde ein eMail - Protokoll?
+000880                     CLOSE #10 \ CLOSE #14
+000890                     FL% = 2 \ OPEN #2:SID$&".email:m", OUTPUT SEQUENTIAL 
+000900 
+000910                     TRENNER% = SCH(1,ZF105$,";")
+000920                     IF TRENNER%>0
+000930                          EMPF$(1) = ZF105$[1:TRENNER%-1] ! Empfänger 1
+000940                          EMPF$(2) = ZF105$[TRENNER%+1:LEN(ZF105$)] ! Empfänger 2
+000950                     ELSE  ! nur ein Empfänger
+000960                          EMPF$(1) = TRIM$(ZF105$)
+000970                          IFEND 
+000980                     PRINT #2:"To: ";TRIM$(LCASE$(EMPF$(1)))
+000990                     IF VAL(PROTOKOLL$)=1 ! Kundenprotokoll
+001000                          PRINT #2:"Cc: ";TRIM$(LCASE$(EMAIL$))
+001010                          IFEND 
+001020                     IF TRIM$(EMPF$(2))<>"" ! 2. Empfänder als Blind-Copy
+001030                          PRINT #2:"Bcc: ";TRIM$(LCASE$(EMPF$(2)))
+001040                          IFEND 
+001050                     PRINT #2:"From: ";TRIM$(LCASE$(ZF106$))
+001060                     PRINT #2:"Subject: Trägerartikelbestellung "&DATE$(0)&"-"&TIME$(0)
+001070                     PRINT #2:""
+001080                     PRINT #2:"Kundennummer "&FKDNR$&" ("&TRIM$(KA1$)&","&TRIM$(KA2$)&") hat Artikel bestellt"
+001090                     PRINT #2
+001100                     MAIL.ZEILE$ = "Träger........: "
+001110                     PRINT #2:MAIL.ZEILE$&TRAENR$&" / "&TRASBE$&CHR$(10);
+001120                     MAIL.ZEILE$ = "Artikel.......: "
+001130                     PRINT #2:MAIL.ZEILE$&ARTNR$&" / "&ASBE$&CHR$(10);
+001140                     MAIL.ZEILE$ = "Größe.........: "
+001150                     PRINT #2:MAIL.ZEILE$&GROESSE$&CHR$(10);
+001160                     MAIL.ZEILE$ = "Menge.........: "
+001170                     PRINT #2:MAIL.ZEILE$&MENGE$&CHR$(10);
+001180                     MAIL.ZEILE$ = "Anmerkung.....: "
+001190                     PRINT #2:MAIL.ZEILE$&INFO$&CHR$(10);
+001200                     PRINT #2
+001210                     PRINT #2:DATE$(0)&" - "&TIME$(0)
+001220                     PRINT #2
+001230                     CLOSE #2 \ CLEAR FL%
+001240                     CALL EMAIL.PROFILEEX("",TRIM$(MIP$),TRIM$(MUS$),TRIM$(MPAS$),"","","","",STR$(VAL(MPORT$)),"")
+001250                     CALL EMAIL.SEND(SID$&".email:m",0)
+001260                     RC = CALL.RETURN.VALUE
+001270                     IF CALL.RETURN.VALUE>0
+001280                          CALL EMAIL.ERROR.MSG(RC,ADDROF(CRC$))
+001290                          GOTO ERROR.ROUT
+001300                          IFEND 
+001310                     SYSTEM "er "&SID$&".email:m (NOQ"
+001320                     IFEND 
+001330                MSG$(1) = "Daten wurden erfolgreich gespeichert!"
+001340                MSG$(2) = "<br />Es wird ein Mitarbeiter der W&auml;scherei benachrichtigt um die Daten zu &uuml;berpr&uuml;fen."
+001350           OTHERWISE 
+001360                PRINT "Hacking attempt!" \ STOP 
+001370           CEND 
+001380      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001390      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001400      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001410      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001420      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+001430      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+001440      CALL CGI.TEMPLATE.VAR("navigation2",NAVIGATION2$)
+001450      CALL CGI.TEMPLATE.VAR("navigation.form2",NAVIGATION.FORM2$)
+001460      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+001470      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/hinweis.tpl")
+001480 ENDE:
+001490      END \ QUIT 
+001500 REM ------------------------------------------------
+001510 ERROR.ROUT:
+001520      RC$ = FN.WFKIFEHL$("bk_be",ERR,ERL,CRC$,FL%)
+001530 
+001540 REM --------------------------------------------------------
+001550 L3: ! OPBK Parameter lesen
+001560      FL% = 3 \ READ #3,KY3$:XKNR$,PW$,TRAEST%,TRAEAR%,TRAEAN%,TRAELI%,TRAEBE%,TEMP%,TEMP%,EMAIL% \ UNLOCK #3 \ CLEAR FL%
+001570      RETURN 
+001580 REM --------------------------------------------------------
+001590 L5: ! OPBK Firemstamm lesen
+001600      FL% = 5 \ READ #5,KY5$:XX$,BESMERK \ CLEAR FL%
+001610      RETURN 
+001620 REM --------------------------------------------------------
+001630 S5: ! OPBK Firmenstamm schreiben
+001640      FL% = 5 \ WRITE #5,KY5$:FKDNR$,BESMERK,DATE$(0),TIME$(0) \ CLEAR FL%
+001650      RETURN 
+001660 REM --------------------------------------------------------
+001670 L10: ! Kundenstamm lesen
+001680      FL% = 10 \ READ #10,KY10$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG$,KDB,K1%,K2%,KRB$,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX1$,XX2$,FK1% \ UNLOCK #10 \ CLEAR FL%
+001690      RETURN 
+001700 REM --------------------------------------------------------
+001710 L11: ! Trägerstamm lesen
+001720      READ #11,KY11$:TRAS1%,TRAS2%,TRASFR%,TRKNR,TRASNR,TRASBE$,TRASSW$,TRASP1$,TRASP2$
+001730      RETURN 
+001740 REM --------------------------------------------------------
+001750 L12: ! Artikelstamm lesen
+001760      FL% = 12 \ READ #12,KY12$:AS1%,AS2%,ASFR%,KNR,ASNR,ASBE$ \ UNLOCK #12 \ CLEAR FL%
+001770      RETURN 
+001780 REM --------------------------------------------------------
+001790 L14: ! persönliche Einstellungen  lesen
+001800      READ #14,KY14$:EMAIL$,XX$,XX$,XX$,PROTOKOLL$,XX%,XX%,XX% \ UNLOCK #14
+001810      RETURN 

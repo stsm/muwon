@@ -1,0 +1,23 @@
+000010 REM Programm zur Anzeige der index.tpl Datei
+000020 REM 12.11.2007 - Schmidt (Programmerstellung)
+000030 REM 22.05.2008 - Schmidt (Fehlerbehandlung)
+000040 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000050 
+000060      INCLUDE "CGI"
+000070      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000080      INCLUDE "WFFOOTER.INC" ! Fuﬂzeile
+000090 
+000100      ON ERROR GOTO ERROR.ROUT
+000110 
+000120      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000130      CALL CGI.INIT
+000140      COMMON KDNR$,SID$
+000150      CALL CGI.TEMPLATE.VAR("sid",SID$)
+000160      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000170      RC$ = FN.WFFOOTER$(NIX$) ! Fuﬂzeile/Copyr generieren
+000180      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/index.tpl")
+000190 ENDE:
+000200      END \ QUIT 
+000210 REM ------------------------------------------------
+000220 ERROR.ROUT:
+000230      RC$ = FN.WFKIFEHL$("index",ERR,ERL,CRC$,FL%)

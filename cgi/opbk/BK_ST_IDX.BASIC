@@ -1,0 +1,74 @@
+000010 REM Programm zur Anzeige der bewo_st_idx.tpl Datei
+000020 REM 16.04.2008 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gateway Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFBKTRAE.INC" ! Trägerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090      INCLUDE "WFZUGANG.INC" ! Zugangskontrolle
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000200 REM *******************************************************
+000210 REM ************ Session prüfen ***************
+000220      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000230      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000240 
+000250 REM ************ Zugang prüfen ***************
+000260      RC$ = FN.WFZUGANG$("bk_st",FKDNR$)
+000270 REM *******************************************
+000280 
+000290      LEER$ = "&nbsp;" ! HTML-Code Leerzeichen
+000300      UMBR$ = "<br />" ! HTML-Code Zeilenumbruch
+000310      SELECT AKTION$
+000320           CASE "start"
+000330                THEMA1$ = "Hier k&ouml;nnen Sie die Stammdaten eines Tr&auml;gers einsehen. <br />"
+000340                THEMA2$ = "W&auml;hlen Sie einen Tr&auml;ger<br />"
+000350                FORMSTART$ = "<form action=""/cgi.opbk/bk_st_aus"" method=""post"">"
+000360                SELECT.NAMEN$ = FN.FORM.SELECT$("namen",1)
+000370                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000380                PARA1$ = FN.FORM.HIDDEN$("aktion","list") ! Aktion versteckt
+000390                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$) ! Kd.-Nr. versteckt
+000400                PARA4$ = FN.FORM.HIDDEN$("sid",SID$) ! Session-ID
+000410                BUTTON$ = FN.FORM.BUTTON$("Anzeigen","Anzeigen")
+000420                FORMENDE$ = "</form>"
+000430           REM -------- BEWOHNER LESEN ANFANG ---------
+000440                RC$ = FNWFBKTRAE$(FKDNR$)
+000450           REM -------- BEWOHNER LESEN ENDE ---------
+000460                CALL CGI.TEMPLATE.VAR("select.namen",SELECT.NAMEN$)
+000470                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000480                CALL CGI.TEMPLATE.VAR("auswahl-namen-box",AUSWAHL.NAMEN$)
+000490                CALL CGI.TEMPLATE.VAR("auswahl-nummer-box",AUSWAHL.NUMMER$)
+000500                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000510                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000520                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000530                CALL CGI.TEMPLATE.VAR("eingabe",EINGABE$)
+000540                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000550                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000560                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000570                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000580                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000590                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000600                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000610                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000620                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000630                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000640                CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/bk_st_idx.tpl")
+000650                GOTO ENDE
+000660           OTHERWISE 
+000670                PRINT "Hacking attempt!" ! Versuchter Hack der Seite?!
+000680                STOP 
+000690           CEND 
+000700 ENDE:
+000710      END \ QUIT 
+000720 REM ------------------------------------------------
+000730 ERROR.ROUT:
+000740      RC$ = FN.WFKIFEHL$("bk_st_idx",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,46 @@
+000010 REM DAEMON zur Sessionverwaltung
+000020 REM 25.01.08 Schmidt - Programmerstellung
+000030 REM 14.11.08 Schmidt - Umbau auf "OPA" Version 2
+000040 
+000050      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000060 
+000070      PRINT AT$(1,1);CRT$("EOS");
+000080      WHILE NOT DONE%
+000090           JETZT = SECOND(TIME$(0))
+000100           OPEN #1:"/WWWROOT/SESSION.ALLE", UPDATE INDEXED 
+000110           KY1$ = "0"
+000120           GOSUB L1 ! ersten Datensatz lesen
+000130           GOSUB L1.1 ! nächsten Satz lesen
+000140           PRINT AT$(1,21);TIME$(0)&" Prüfe auf abgelaufene Sessions ";
+000150           WHILE NOT EOF(1)
+000160                IF JETZT>ABLAUF THEN GOSUB LOE1 ! Datensatz löschen
+000170                GOSUB L1.1 ! nächsten Datensatz lesen
+000180                WEND 
+000190           CLOSE #1
+000200           IF LZ%>0 THEN PRINT AT$(1,22);TIME$(0)&" "&STR$(LZ%)&" Session(s) gelöscht"; \ CLEAR LZ%
+000210           FOR I% = 30 TO 1 STEP -1
+000220                IF CMDARG$(2)="INFO" THEN PRINT AT$(1,23);"Prüfung in "&FORMAT$(I%,"99")&" Sekunden";
+000230                SLEEP 1
+000240                NEXT I%
+000250           CLEAR SESSION.ID$,KDNR$,ABLAUF,JETZT,TEMP$,TEMP
+000260           GET EINGABE$
+000270           IF EINGABE$<>"" THEN DONE% = -1
+000280           WEND 
+000290      PRINT AT$(1,23);CRT$("EOS");"Dienst beendet";
+000300      END 
+000310 REM ----------------------------------------------------
+000320 L1: ! Sessiondatei ersten Satz lesen
+000330      READ #1,KY1$:KDNR$,SESSION.ID$,TEMP,ABLAUF,TEMP$,TEMP$
+000340      UNLOCK #1
+000350      RETURN 
+000360 REM ----------------------------------------------------
+000370 L1.1: ! Sessiondatei nächsten Satz lesen
+000380      READNEXT #1,KY1$:KDNR$,SESSION.ID$,TEMP,ABLAUF,TEMP$,TEMP$
+000390      UNLOCK #1
+000400      RETURN 
+000410 REM ----------------------------------------------------
+000420 LOE1: ! Sessiondatei Datensatz löschen
+000430      LZ% = LZ%+1
+000440      DELETE #1,KY1$
+000450      SYSTEM "er /wwwroot/temp/"&SESSION.ID$&"*.* (not noq"
+000460      RETURN 

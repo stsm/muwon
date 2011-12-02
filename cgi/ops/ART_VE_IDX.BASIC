@@ -1,0 +1,76 @@
+000010 REM Programm zur Anzeige der art_ve_idx.tpl Datei
+000020 REM 25.02.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000070      INCLUDE "WFBEWART.INC" ! Bewohnerartikel
+000080      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000090      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000100 
+000110      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000190      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000210 REM *******************************************************
+000220 
+000230 REM ************ Session prüfen ***************
+000240      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000250      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000260 REM *******************************************
+000270 
+000280 
+000290      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000300      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000310      SELECT AKTION$
+000320           CASE "start"
+000330                THEMA1$ = "Vergleiche und Statistiken  <br />"
+000340                THEMA2$ = "W&auml;hlen Sie einen Bewohner sowie Artikel und die Vergleichsausgabe <br />"
+000350                SELECT.NAMEN$ = FN.FORM.SELECT$("namen",1)
+000360                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000370                SELECT.SUCHNA$ = FN.FORM.SELECT$("suchna",1)
+000380                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000390                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000400                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000410                PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+000420                PARA5$ = FN.FORM.HIDDEN$("sort","1") ! nach Art.Nr. sort
+000430           REM -------- BEWOHNER LESEN ANFANG ---------
+000440                RC$ = FNWFKIBEWA$(FKDNR$)
+000450           REM -------- BEWOHNER LESEN ENDE ---------
+000460           REM -------- BEWOHNERARTIKEL LESEN ANFANG ---------
+000470                RC.BEWART$ = FNWFBEWART$(FKDNR$)
+000480           REM -------- BEWOHNERARTIKEL LESEN ENDE ---------
+000490                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000500                CALL CGI.TEMPLATE.VAR("select.namen",SELECT.NAMEN$)
+000510                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000520                CALL CGI.TEMPLATE.VAR("select.suchna",SELECT.SUCHNA$)
+000530                CALL CGI.TEMPLATE.VAR("auswahl-namen-box",AUSWAHL.NAMEN$)
+000540                CALL CGI.TEMPLATE.VAR("auswahl-nummer-box",AUSWAHL.NUMMER$)
+000550                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000560                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000570                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000580                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000590                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000600                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000610                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000620                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000630                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+000640                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000650                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000660                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/art_ve_idx.tpl")
+000670                GOTO ENDE
+000680           OTHERWISE 
+000690                PRINT "Hacking attempt!"
+000700                STOP 
+000710           CEND 
+000720 ENDE:
+000730      END 
+000740 REM ------------------------------------------------
+000750 ERROR.ROUT:
+000760      RC$ = FN.WFKIFEHL$("art_ve_idx",ERR,ERL,CRC$,FL%)

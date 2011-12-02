@@ -1,0 +1,80 @@
+000010 REM Programm zur Anzeige der bewo_ar_idx.tpl Datei
+000020 REM 07.01.2009 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI" ! Toolkit : Common Gatewas Interface
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000060      INCLUDE "WFKIBEWA.INC" ! Bewohnerauswahl
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000180      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000190      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion - was wollen wir
+000200 REM *******************************************************
+000210 
+000220 REM ************ Session prüfen ***************
+000230      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000240      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000250 REM *******************************************
+000260 
+000270 
+000280      LEER$ = "&nbsp;" ! HTML-COde Leerzeichen
+000290      UMBR$ = "<br />" ! HTML Code Zeilenumbruch
+000300      SELECT AKTION$
+000310           CASE "start"
+000320                THEMA1$ = "Bewohnerartikel inkl. Barcodes <br />"
+000330                THEMA2$ = "Wählen Sie einen Bewohner und ggf. Anzeigeoptionen <br />"
+000340                FORMSTART$ = "<form action=""/cgi.ops/bewo_ar_aus"" method=""post"">"
+000350                SELECT.NAMEN$ = FN.FORM.SELECT$("namen",1)
+000360                SELECT.NUMMER$ = FN.FORM.SELECT$("nummer",1)
+000370                SELECT.SUCHNA$ = FN.FORM.SELECT$("suchna",1)
+000380                SELECT.ARTIKEL$ = FN.FORM.SELECT$("artikel",1)
+000390                PARA1$ = FN.FORM.HIDDEN$("aktion","list")
+000400                PARA2$ = FN.FORM.HIDDEN$("kdnr",KDNR$)
+000410                PARA3$ = FN.FORM.HIDDEN$("sid",SID$)
+000420                PARA4$ = FN.FORM.HIDDEN$("mita",MITA$)
+000430                PARA5$ = FN.FORM.HIDDEN$("sort","1") ! nach Art.Nr. sort
+000440                BUTTON$ = FN.FORM.BUTTON$("Anzeigen","Anzeigen")
+000450                FORMENDE$ = "</form>"
+000460           REM -------- BEWOHNER LESEN ANFANG ---------
+000470                RC$ = FNWFKIBEWA$(FKDNR$)
+000480           REM -------- BEWOHNER LESEN ENDE ---------
+000490                CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000500                CALL CGI.TEMPLATE.VAR("select.namen",SELECT.NAMEN$)
+000510                CALL CGI.TEMPLATE.VAR("select.nummer",SELECT.NUMMER$)
+000520                CALL CGI.TEMPLATE.VAR("select.suchna",SELECT.SUCHNA$)
+000530                CALL CGI.TEMPLATE.VAR("select.artikel",SELECT.ARTIKEL$)
+000540                CALL CGI.TEMPLATE.VAR("auswahl-namen-box",AUSWAHL.NAMEN$)
+000550                CALL CGI.TEMPLATE.VAR("auswahl-nummer-box",AUSWAHL.NUMMER$)
+000560                CALL CGI.TEMPLATE.VAR("thema1",THEMA1$)
+000570                CALL CGI.TEMPLATE.VAR("thema2",THEMA2$)
+000580                CALL CGI.TEMPLATE.VAR("formstart",FORMSTART$)
+000590                CALL CGI.TEMPLATE.VAR("leer",LEER$)
+000600                CALL CGI.TEMPLATE.VAR("br",UMBR$)
+000610                CALL CGI.TEMPLATE.VAR("para1",PARA1$)
+000620                CALL CGI.TEMPLATE.VAR("para2",PARA2$)
+000630                CALL CGI.TEMPLATE.VAR("para3",PARA3$)
+000640                CALL CGI.TEMPLATE.VAR("para4",PARA4$)
+000650                CALL CGI.TEMPLATE.VAR("para5",PARA5$)
+000660                CALL CGI.TEMPLATE.VAR("button",BUTTON$)
+000670                CALL CGI.TEMPLATE.VAR("formende",FORMENDE$)
+000680                CALL CGI.TEMPLATE.VAR("mita",MITA$)
+000690                RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000700                CALL CGI.TEMPLATE("/wwwroot/ops/tpl/bewo_ar_idx.tpl")
+000710                GOTO ENDE
+000720           OTHERWISE 
+000730                PRINT "Hacking attempt!"
+000740                STOP 
+000750           CEND 
+000760 ENDE:
+000770      END 
+000780 REM ------------------------------------------------
+000790 ERROR.ROUT:
+000800      RC$ = FN.WFKIFEHL$("bewo_ar_idx",ERR,ERL,CRC$,FL%)

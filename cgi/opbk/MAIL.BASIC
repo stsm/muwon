@@ -1,0 +1,83 @@
+000010 REM Programm zum Email versenden
+000020 REM 11.08.2009 - Schmidt (Handling 2. Empfänger)
+000030 
+000040      INCLUDE "CGI" ! Common Gateway Interface
+000050      INCLUDE "EMAIL" ! Mail Toolkit
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 1.0.02,"Mittermeier & Ungelenk GmbH"
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID
+000170      CALL CGI.GET("name",ADDROF(NAME$)) ! Name aus Formular übernehmen
+000180      CALL CGI.GET("betreff",ADDROF(BETREFF$)) ! Betreff aus Form.
+000190      CALL CGI.GET("anliegen",ADDROF(ANLIEGEN$)) ! Anliegen aus Form.
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Anliegen aus Form.
+000210 REM *******************************************************
+000220 REM ************ Session prüfen ***************
+000230      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000240      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000250 REM *******************************************
+000260 
+000270      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite</a></font>"
+000280      NAVIGATION.FORM$ = "<form action=""/cgi.opbk/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""></form>"
+000290      SELECT AKTION$
+000300           CASE "Absenden"
+000310                FL% = 98 \ OPEN #98:"/FISTAM.REI", INPUT INDEXED ! Firmenstamm für Email
+000320                READ #98,"101":XX%,ZA1$,ZA2$,ZST$,ZLA$,ZPL,ZOR$,ZTE$,ZTX$,ZTTX$,XXXX1$,XXXX2$,ZF100$,ZF101$,ZF102$,ZF103$,ZF104$,ZF105$,ZF106$ \ UNLOCK #98
+000330                READ #98,"1KISS":MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$ \ UNLOCK #98
+000340                CLOSE #98
+000350                FL% = 99 \ OPEN #99:SID$&".email:m", OUTPUT SEQUENTIAL 
+000360                TRENNER% = SCH(1,ZF105$,";")
+000370                IF TRENNER%>0
+000380                     EMPF$(1) = ZF105$[1:TRENNER%-1]      ! Empfänger 1
+000390                     EMPF$(2) = ZF105$[TRENNER%+1:LEN(ZF105$)]      ! Empfänger 2
+000400                ELSE      ! kein 2. Empfänger
+000410                     EMPF$(1) = TRIM$(ZF105$)
+000420                     IFEND 
+000430                PRINT #99:"To: <"&TRIM$(LCASE$(EMPF$(1)))&">"
+000440                IF TRIM$(EMPF$(2))<>""      ! 2. Empfänder als Blind-Copy
+000450                     PRINT #99:"Bcc: <"&TRIM$(LCASE$(EMPF$(2)))&">"
+000460                     IFEND 
+000470                PRINT #99:"From: <"&TRIM$(LCASE$(ZF106$))&">"
+000480                PRINT #99:"Subject: Nachricht KISS Portal vom "&DATE$(0)&"/"&TIME$(0)
+000490                PRINT #99:""
+000500                PRINT #99:"Name   : "&NAME$
+000510                PRINT #99:"Kd.Nr  : "&FKDNR$
+000520                PRINT #99:"Betreff: "&BETREFF$
+000530                PRINT #99
+000540                PRINT #99:ANLIEGEN$
+000550                CLOSE #99 \ CLEAR FL%
+000560                CALL EMAIL.PROFILEEX("",TRIM$(MIP$),TRIM$(MUS$),TRIM$(MPAS$),"","","","",STR$(VAL(MPORT$)),"")
+000570                CALL EMAIL.SEND(SID$&".email:m",0)
+000580                RC = CALL.RETURN.VALUE
+000590                IF CALL.RETURN.VALUE=0
+000600                     MSG$(1) = "Email wurde erfolgreich verschickt!"
+000610                ELSE 
+000620                     CALL EMAIL.ERROR.MSG(RC,ADDROF(CRC$))
+000630                     GOTO ERROR.ROUT
+000640                     IFEND 
+000650                MSG$(2) = "<br/><a href=""javascript:document.home.submit();""><font face=""verdana"" size=""2""><br/>[ weiter >> ]</a></font>"
+000660                SYSTEM "er "&SID$&".email:m (not noq"
+000670           OTHERWISE 
+000680                PRINT "Hacking attempt!"
+000690                PRINT "("&AKTION$&")"
+000700                STOP 
+000710           CEND 
+000720      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000730      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+000740      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+000750      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+000760      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+000770      RC$ = FN.WFFOOTER$(NIX$) ! fußzeile
+000780      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/hinweis.tpl")
+000790 ENDE:
+000800      END \ QUIT 
+000810 REM ------------------------------------------------
+000820 ERROR.ROUT:
+000830      RC$ = FN.WFKIFEHL$("email",ERR,ERL,CRC$,FL%)

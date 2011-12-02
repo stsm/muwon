@@ -1,0 +1,208 @@
+000010 REM Programm zur Übernahme der Bewohnerdaten
+000020 REM 13.01.09 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "EMAIL" ! Email Toolkit
+000060      INCLUDE "WFALLGEM.INC" ! allgemeine Routinen
+000070      INCLUDE "WFKIFEHL.INC" ! Fehlerbehandlung
+000080      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000090      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000100 
+000110      OPTION VERSION 1.0.01,"Mitttermeier & Ungelenk GmbH"
+000120 
+000130      ON ERROR GOTO ERROR.ROUT
+000140 
+000150 REM *******************************************************
+000160      CALL CGI.INIT
+000170      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000180      CALL CGI.GET("sid",ADDROF(SID$)) ! Session ID
+000190      CALL CGI.GET("mita",ADDROF(MITA$)) ! Mitarbeiter
+000200      CALL CGI.GET("aktion",ADDROF(AKTION$))
+000210 REM *******************************************************
+000220      CALL CGI.GET("nname",ADDROF(BEWNAME$))
+000230      CALL CGI.GET("vname",ADDROF(BEWVORNAME$))
+000240      CALL CGI.GET("namenueb",ADDROF(NAMEN.UEB$))
+000250      CALL CGI.GET("zimmer",ADDROF(BEWZIMMER$))
+000260      CALL CGI.GET("station",ADDROF(BEWSTATION$))
+000270      CALL CGI.GET("kommentar1",ADDROF(BEWKOMM1$))
+000280      CALL CGI.GET("kommentar2",ADDROF(BEWKOMM2$))
+000290      CALL CGI.GET("opas",ADDROF(BEWOPAS$))
+000300      CALL CGI.GET("zahler",ADDROF(BEWZAHLART$))
+000310      CALL CGI.GET("sperrerei",ADDROF(BEWSPREI$))
+000320      CALL CGI.GET("abrechnung",ADDROF(BEWABRECH$))
+000330      CALL CGI.GET("saecke",ADDROF(BEWSAECKE$))
+000340      CALL CGI.GET("etiabrech",ADDROF(BEWETIABRECH$))
+000350      CALL CGI.GET("name1",ADDROF(BEWZAHLER1$))
+000360      CALL CGI.GET("name2",ADDROF(BEWZAHLER2$))
+000370      CALL CGI.GET("name3",ADDROF(BEWZAHLER3$))
+000380      CALL CGI.GET("str",ADDROF(BEWSTRASSE$))
+000390      CALL CGI.GET("plz",ADDROF(BEWPLZ$))
+000400      CALL CGI.GET("ort",ADDROF(BEWORT$))
+000410      CALL CGI.GET("bank",ADDROF(BEWBANK$))
+000420      CALL CGI.GET("kto",ADDROF(BEWKTO$))
+000430      CALL CGI.GET("blz",ADDROF(BEWBLZ$))
+000440      CALL CGI.GET("porto",ADDROF(BEWPORTO$))
+000450 REM *******************************************************
+000460 REM ************ Session prüfen ***************
+000470      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000480      RC$ = FN.WFSESSION$("session.update",SID$,MITA$)
+000490 REM *******************************************
+000500      NAVIGATION$ = "<a href=""javascript:document.home.submit();""><img src=""../../global/pics/home.png"" border=""0""><font face=""verdana"" size=""2"">Startseite </font></a>"
+000510      NAVIGATION2$ = "<a href=""javascript:document.heim_idx.submit();""><img src=""../../global/pics/heim.png"" border=""0""><font face=""verdana"" size=""2"">Hauptmen&uuml; </font></a>"
+000520      NAVIGATION.FORM$ = "<form action=""/cgi.ops/home"" name=""home"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""><input type=""hidden"" name=""mita"" value="""&MITA$&"""></form>"
+000530      NAVIGATION.FORM2$ = "<form action=""/cgi.ops/heim_idx"" name=""heim_idx"" method=""post""><input type=""hidden"" name=""kdnr"" value="""&KDNR$&"""><input type=""hidden"" name=""sid"" value="""&SID$&"""><input type=""hidden"" name=""mita"" value="""&MITA$&"""></form>"
+000540      KNR$ = FKDNR$
+000550      ZNR$ = "1" \ ZNR% = 1 ! Firmennummer
+000560      SELECT AKTION$
+000570           CASE "Speichern"
+000580                IF VAL(BEWZAHLART$)=0 ! keine Überweisung - vorsorg. lö
+000590                     CLEAR BEWZAHLER1$,BEWZAHLER2$,BEWZAHLER3$,BEWSTRASSE$,BEWPLZ$,BEWORT$,BEWBANK$,BEWKTO$,BEWBLZ$,BEWPORTO$
+000600                     IFEND 
+000610                FL% = 1 \ OPEN #1:"/KUSTWA.REI", INPUT INDEXED ! Kundestamm
+000620                FL% = 3 \ OPEN #3:"/BEWOH1.REI", UPDATE INDEXED ! Stamm
+000630                FL% = 5 \ OPEN #5:"/BEWO10.REI", OUTPUT INDEXED ! Bewohnerbank
+000640                FL% = 7 \ OPEN #7:"/BEWOSU.REI", OUTPUT INDEXED ! INDEX Bewohnername
+000650                FL% = 8 \ OPEN #8:"/BEWOH2.REI", OUTPUT INDEXED ! Suchname Bewohner
+000660                FL% = 11 \ OPEN #11:"/BEWOH3.REI", OUTPUT INDEXED ! Säcke
+000670                FL% = 12 \ OPEN #12:"/BEWOH4.REI", OUTPUT INDEXED ! Säck-Etiketten
+000680                FL% = 20 \ OPEN #20:"/BEWO11.REI", OUTPUT INDEXED ! Patientennummer
+000690                KY1$ = ZNR$&FKDNR$
+000700                GOSUB L1 ! Kundenstamm lesen
+000710 
+000720           REM nächste freie Bewohnernummer ermitteln
+000730                ASNRN = 1
+000740                WHILE ASNRN
+000750                     KY3$ = "1"&FKDNR$&FORMAT$(ASNRN,"999999")
+000760                     GOSUB L3 \ UNLOCK #3
+000770                     IF EOF(3) THEN BREAK 
+000780                     ASNRN = ASNRN+1
+000790                     WEND 
+000800                CLEAR AS1%,AS2%,ASFR%,ASKNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,KUE1$,KUE2$,KUE3%
+000810                ASNR = ASNRN ! nächste freie Nummer ermittelt
+000820                ASNR$ = FORMAT$(ASNR,"999999")
+000830 ! stop
+000840 
+000850           REM Bewohnerstamm aufbauen
+000860                SELECT TRIM$(NAMEN.UEB$) ! Bewohnernamenaufbereitung
+000870                     CASE "vn" ! vorname Nachname
+000880                          ASBE$[1:24] = BEWVORNAME$&" "&BEWNAME$
+000890                     CASE "nv" ! Nachname, Vorname
+000900                          ASBE$[1:24] = BEWNAME$&", "&BEWVORNAME$
+000910                     CEND 
+000920 
+000930                KNR = VAL(FKDNR$) \ ASSW$[1:6] = UCASE$(BEWNAME$) \ ASP1$ = "0" \ ASP2$ = UCASE$(BEWZIMMER$)
+000940                ASP3$ = ASP3$&SPACE$(100)
+000950                ASP3$[1:5] = UCASE$(BEWSTATION$) \ ASP3$[6:6] = "0" \ ASP3$[7:7] = "0" \ ASP3$[8:8] = BEWZAHLART$ \ ASP3$[9:18] = BEWKOMM1$ \ ASP3$[19:28] = BEWKOMM2$ \ ASP3$[29:29] = BEWETIABRECH$ \ ASP3$[30:35] = DATE$(0)[1:2]&DATE$(0)[4:5]&DATE$(0)[9:10] \ ASP3$[54:68] = BEWOPAS$ \ ASP3$[69:69] = BEWSPREI$ \ ASP3$[84:84] = BEWPORTO$ \ ASP3$[85:85] = "0"
+000960                ASP4$ = BEWSAECKE$ \ ASP5 = 0 \ ASP6 = 0 \ ASP7% = VAL(BEWABRECH$) \ ASP8% = 0
+000970                GOSUB S3 ! Bewohnerstamm schreiben
+000980                KY7$ = ZNR$&ASBE$&KNR$&ASNR$
+000990                GOSUB S7 ! Index Bewohnername schreiben
+001000                GOSUB S8 ! Index Bewohnersuchname schreiben
+001010                IF TRIM$(ASP3$[54:68])<>"" THEN GOSUB S20 ! Index Patientennummer
+001020 
+001030           REM Wäschesäcke 1-6/12 anlegen BEWOH3.REI
+001040                KY11$ = ZNR$&KNR$&ASNR$&"01" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"01" \ GOSUB S11
+001050                KY11$ = ZNR$&KNR$&ASNR$&"02" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"02" \ GOSUB S11
+001060                KY11$ = ZNR$&KNR$&ASNR$&"03" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"03" \ GOSUB S11
+001070                KY11$ = ZNR$&KNR$&ASNR$&"04" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"04" \ GOSUB S11
+001080                KY11$ = ZNR$&KNR$&ASNR$&"05" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"05" \ GOSUB S11
+001090                KY11$ = ZNR$&KNR$&ASNR$&"06" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"06" \ GOSUB S11
+001100                KY11$ = ZNR$&KNR$&ASNR$&"07" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"07" \ GOSUB S11
+001110                KY11$ = ZNR$&KNR$&ASNR$&"08" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"08" \ GOSUB S11
+001120                KY11$ = ZNR$&KNR$&ASNR$&"09" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"09" \ GOSUB S11
+001130                KY11$ = ZNR$&KNR$&ASNR$&"10" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"10" \ GOSUB S11
+001140                KY11$ = ZNR$&KNR$&ASNR$&"11" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"11" \ GOSUB S11
+001150                KY11$ = ZNR$&KNR$&ASNR$&"12" \ SAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"12" \ GOSUB S11
+001160           REM ggf. Wäschesack-Etiketten vorbereiten BEWOH4.REI
+001170                IF VAL(ASP4$)=0 OR KT$[160:165]="009001" OR (VAL(KT$[160:165])>9930 AND VAL(KT$[160:165])<>9932) THEN GOTO 1370 ! kein Wäschesack
+001180                NAME1$ = KA1$
+001190                IF TRIM$(KT$[424:447])<>"" THEN NAME1$ = KT$[424:447] ! abweichender Name
+001200                IF VAL(ASP4$)>=1 THEN KY12$ = ZNR$&KNR$&ASNR$&"01" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"01" \ GOSUB S12
+001210                IF VAL(ASP4$)>=2 THEN KY12$ = ZNR$&KNR$&ASNR$&"02" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"02" \ GOSUB S12
+001220                IF VAL(ASP4$)>=3 THEN KY12$ = ZNR$&KNR$&ASNR$&"03" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"03" \ GOSUB S12
+001230                IF VAL(ASP4$)>=4 THEN KY12$ = ZNR$&KNR$&ASNR$&"04" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"04" \ GOSUB S12
+001240                IF VAL(ASP4$)>=5 THEN KY12$ = ZNR$&KNR$&ASNR$&"05" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"05" \ GOSUB S12
+001250                IF VAL(ASP4$)>=6 THEN KY12$ = ZNR$&KNR$&ASNR$&"06" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"06" \ GOSUB S12
+001260                IF VAL(ASP4$)>=7 THEN KY12$ = ZNR$&KNR$&ASNR$&"07" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"07" \ GOSUB S12
+001270                IF VAL(ASP4$)>=8 THEN KY12$ = ZNR$&KNR$&ASNR$&"08" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"08" \ GOSUB S12
+001280                IF VAL(ASP4$)>=9 THEN KY12$ = ZNR$&KNR$&ASNR$&"09" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"09" \ GOSUB S12
+001290                IF VAL(ASP4$)>=10 THEN KY12$ = ZNR$&KNR$&ASNR$&"10" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"10" \ GOSUB S12
+001300                IF VAL(ASP4$)>=11 THEN KY12$ = ZNR$&KNR$&ASNR$&"11" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"11" \ GOSUB S12
+001310                IF VAL(ASP4$)=12 THEN KY12$ = ZNR$&KNR$&ASNR$&"12" \ BSAC1$ = "9"&KNR$[2:6]&ASNR$[3:6]&"12" \ GOSUB S12
+001320                IF VAL(BEWZAHLART$)>0
+001330                     KY5$ = ZNR$&FKDNR$&FORMAT$(ASNR,"999999")
+001340                     BKA1$ = BEWZAHLER1$ \ BKA2$ = BEWZAHLER2$ \ BKA3$ = BEWZAHLER3$ \ BKST$ = BEWSTRASSE$ \ BKPL = VAL(BEWPLZ$) \ BKOR$ = BEWORT$ \ BK1$ = BEWBANK$ \ BK2 = VAL(BEWBLZ$) \ BK3 = VAL(BEWKTO$) \ BK4 = VAL(FKDNR$) \ BKSW$ = ASSW$
+001350                     GOSUB S5 ! Bank schreiben
+001360                     IFEND 
+001370                MSG$(1) = "Daten wurden erfolgreich gespeichert!"
+001380           OTHERWISE 
+001390                PRINT "Hacking attempt!" \ STOP 
+001400           CEND 
+001410      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+001420      CALL CGI.TEMPLATE.VAR("msg1",MSG$(1))
+001430      CALL CGI.TEMPLATE.VAR("msg2",MSG$(2))
+001440      CALL CGI.TEMPLATE.VAR("msg3",MSG$(3))
+001450      CALL CGI.TEMPLATE.VAR("navigation",NAVIGATION$)
+001460      CALL CGI.TEMPLATE.VAR("navigation.form",NAVIGATION.FORM$)
+001470      CALL CGI.TEMPLATE.VAR("navigation2",NAVIGATION2$)
+001480      CALL CGI.TEMPLATE.VAR("navigation.form2",NAVIGATION.FORM2$)
+001490      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+001500      CALL CGI.TEMPLATE("/wwwroot/ops/tpl/hinweis.tpl")
+001510 ENDE:
+001520      END 
+001530 REM ------------------------------------------------
+001540 ERROR.ROUT:
+001550      RC$ = FN.WFKIFEHL$("bewo_an",ERR,ERL,CRC$,FL%)
+001560 
+001570 REM --------------------------------------------------------
+001580 L1: ! Kundenstamm lesen
+001590      FL% = 1 \ READ #1,KY1$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG$,KDB,K1%,K2%,KRB$,KFA%,KTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5%,XX1$,XX2$,FK1% \ UNLOCK #1 \ CLEAR FL%
+001600      RETURN 
+001610 REM --------------------------------------------------------
+001620 L3: ! Bewohner lesen BEWOH1.REI
+001630      FL% = 3 \ READ #3,KY3$:AS1%,AS2%,ASFR%,ASKNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,KUE1$,KUE2$,KUE3%
+001640      RETURN 
+001650 L3.1: ! nächsten Bewohner lesen BEWOH1.REI
+001660      FL% = 3 \ READNEXT #3,KY3$:AS1%,AS2%,ASFR%,ASKNR,ASNR,ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,KUE1$,KUE2$,KUE3%
+001670      RETURN 
+001680 S3: ! Bewohner schreiben BEWOH1.REI
+001690      FL% = 3 \ WRITE #3,KY3$:AS1%,AS2%,ZNR%,VAL(KNR$),VAL(ASNR$),ASBE$,ASSW$,ASP1$,ASP2$,ASP3$,ASP4$,ASP5,ASP6,ASP7%,ASP8%,DATE$(0),TIME$(0),FK1%
+001700      RETURN 
+001710 L5: ! Bank lesen BEWO10.REI
+001720      FL% = 5 \ READ #5,ZNR$&KNR$&ASNR$:BKFR%,BKNR,BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$
+001730      RETURN 
+001740 S5: ! Bank schreiben BEWO10.REI
+001750      FL% = 5 \ WRITE #5,ZNR$&KNR$&ASNR$:ZNR%,VAL(KNR$&ASNR$),BKA1$,BKA2$,BKST$,BKPL,BKOR$,BKSW$,BK1$,BK2,BK3,BK4,BK5%,BK6%,BKA3$,BK8$,BK9$,BK10$
+001760      RETURN 
+001770 L7: ! Index Bewohnername lesen BEWOSU.REI
+001780      FL% = 7 \ READ #7,KY7$:AKY7$
+001790      RETURN 
+001800 S7: ! Index Bewohnername schreiben BEWOSU.REI
+001810      FL% = 7 \ WRITE #7,KY7$:KY7$
+001820      RETURN 
+001830 S8: ! Suchnamen schreiben BEWOH2.REI
+001840      KY8$ = ZNR$&ASSW$&KNR$&ASNR$
+001850      FL% = 8 \ WRITE #8,KY8$:ZNR%,ASSW$,VAL(KNR$),VAL(ASNR$)
+001860      RETURN 
+001870 L11: ! Sack lesen BEWOH3.REI
+001880      FL% = 11 \ READ #11,KY11$:AKY11$,SAC1$,SAC2$,SAC3$,SAC4,SAC5,SAC6,SAC7%,SAC8%,SAC9%,SAC10$,SAC11$,SAC12$,SAC13$
+001890      RETURN 
+001900 L111: ! nächsten Sack lesen BEWOH3.REI
+001910      FL% = 11 \ READNEXT #11,KY11$:AKY11$,SAC1$,SAC2$,SAC3$,SAC4,SAC5,SAC6,SAC7%,SAC8%,SAC9%,SAC10$,SAC11$,SAC12$,SAC13$
+001920      RETURN 
+001930 S11: ! Sack schreiben BEWOH3.REI
+001940      FL% = 11 \ WRITE #11,KY11$:KY11$,SAC1$,SAC2$,SAC3$,SAC4,SAC5,SAC6,SAC7%,SAC8%,SAC9%,SAC10$,SAC11$,DATE$(0),TIME$(0)
+001950      RETURN 
+001960 L12: ! Wäschesack-Etikett lesen BEWOH4.REI
+001970      FL% = 12 \ READ #12,KY12$:AKY12$,BSAC1$,BSAC2$,BESAC3$,BSAC4,BSAC5,BESAC6$,BSAC7$,XX$,XX1$
+001980      RETURN 
+001990 L121: ! nächste Wäschesack-Etikett lesen BEWOH4.REI
+002000      FL% = 12 \ READNEXT #12,KY12$:AKY12$,BSAC1$,BSAC2$,BESAC3$,BSAC4,BSAC5,BESAC6$,BESAC7$,XX$,XX1$
+002010      RETURN 
+002020 S12: ! Wäschesack-Etikett schreiben BEWOH4.REI
+002030      FL% = 12 \ WRITE #12,KY12$:KY12$,BSAC1$,NAME1$,ASBE$,1,9,ASP1$,ASP2$,DATE$(0),TIME$(0)
+002040      RETURN 
+002050 S20: ! Index Patientennummer/OPAS Schreiben
+002060      KY20$ = ZNR$&ASP3$[54:68]&FORMAT$(VAL(KNR$),"999999")&FORMAT$(ASNR,"999999")
+002070      FL% = 20 \ WRITE #20,KY20$:KY20$,DATE$(0),TIME$(0)
+002080      RETURN 

@@ -1,0 +1,85 @@
+000010 REM Programm zur Anzeige der settings.tpl Datei
+000020 REM 24.11.2008 - Schmidt (Programmerstellung)
+000030 
+000040      INCLUDE "CGI"
+000050      INCLUDE "WFKIFEHL.INC" ! Fehlerbehanldung
+000060      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000070      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000080 
+000090      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000100 
+000110      ON ERROR GOTO ERROR.ROUT
+000120 
+000130 REM *******************************************************
+000140      CALL CGI.INIT
+000150      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000160      CALL CGI.GET("sid",ADDROF(SID$)) ! Session-ID übernehmen
+000170      CALL CGI.GET("aktion",ADDROF(AKTION$)) ! Aktion übernehmen
+000180 REM *******************************************************
+000190 REM ************ Session prüfen ***************
+000200      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000210      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000220 REM *******************************************
+000230      FL% = 10 \ OPEN #10:"/wwwroot/opa/SETTING.OPA", UPDATE INDEXED \ CLEAR FL%
+000240      SELECT AKTION$
+000250           CASE "Start"
+000260                KY10$ = "1"&FKDNR$ \ GOSUB L10 \ UNLOCK #10
+000270                EMAIL.ADRESSE$ = FN.FORM.INPUT$("email",40,40,EMAIL$)
+000280                SELECT.EMAIL$ = FN.FORM.SELECT$("protokoll",1)
+000290                SELECT VAL(PROTOKOLL$) ! Protokoll 1=ja 0=nein
+000300                     CASE 1
+000310                          SELECT.EMAIL.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",0,"nein")
+000320                          SELECT.EMAIL.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",1,"ja")
+000330                     OTHERWISE 
+000340                          SELECT.EMAIL.INHALT$(1) = FN.FORM.SELECT.OPTION$("0",1,"nein")
+000350                          SELECT.EMAIL.INHALT$(2) = FN.FORM.SELECT.OPTION$("1",0,"ja")
+000360                     CEND 
+000370                SELECT.ENDE$ = "</select>"
+000380                EMAIL.TXT$ = "<font face=""verdana"" size=""2"">e-Mail Protokoll aktivieren?</font>"
+000390                SPEICHERN.BUTTON$ = "<input type=""submit"" name=""aktion"" value=""Speichern"" />"
+000400                CALL CGI.TEMPLATE.VAR("speichern.button",SPEICHERN.BUTTON$)
+000410                CALL CGI.TEMPLATE.VAR("email.txt",EMAIL.TXT$)
+000420                CALL CGI.TEMPLATE.VAR("select.ende",SELECT.ENDE$)
+000430                CALL CGI.TEMPLATE.VAR("select.email",SELECT.EMAIL$)
+000440                CALL CGI.TEMPLATE.VAR("email.adresse",EMAIL.ADRESSE$)
+000450                FOR I% = 1 TO 2
+000460                     CALL CGI.TEMPLATE.VAR("select.email.inhalt"&STR$(I%),SELECT.EMAIL.INHALT$(I%))
+000470                     NEXT I%
+000480           CASE "Speichern"
+000490                CALL CGI.GET("email",ADDROF(EMAIL$))
+000500                CALL CGI.GET("protokoll",ADDROF(PROTOKOLL$))
+000510                IF TRIM$(EMAIL$)="" AND VAL(PROTOKOLL$)>0
+000520                     SET.MSG$ = "Sie haben keine e-Mailadresse angegeben!"
+000530                     GOTO GENERIEREN
+000540                     IFEND 
+000550                KY10$ = "1"&FKDNR$
+000560                GOSUB S10 ! Einstellungen speichern
+000570                SET.MSG$ = "Die &Auml;nderungen wurden erfolgreich gespeichert!"
+000580           OTHERWISE 
+000590                PRINT "schwerer Ablauffehler" \ STOP 
+000600           CEND 
+000610 GENERIEREN:
+000620      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000630      CALL CGI.TEMPLATE.VAR("sid",SID$)
+000640      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000650      CALL CGI.TEMPLATE.VAR("set.msg",SET.MSG$)
+000660      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/settings.tpl")
+000670 ENDE:
+000680      CLOSE #10
+000690      END \ QUIT 
+000700 REM ------------------------------------------------
+000710 ERROR.ROUT:
+000720      IF ERR=30 AND FL%=10 THEN SYSTEM "cr /wwwroot/opa/SETTING.OPA (i file 500 keyl 10 recl 300" \ RESUME 
+000730      RC$ = FN.WFKIFEHL$("settings",ERR,ERL,CRC$,FL%)
+000740 REM ------------------------------------------------
+000750 L10: ! Einstellungen lesen
+000760      READ #10,KY10$:EMAIL$,XX$,XX$,XX$,PROTOKOLL$,XX%,XX%,XX%
+000770      RETURN 
+000780 REM ------------------------------------------------
+000790 S10: ! Einstellungen schreiben
+000800      WRITE #10,KY10$:EMAIL$,XX$,XX$,XX$,VAL(PROTOKOLL$),XX%,XX%,XX%,DATE$(0),TIME$(0)
+000810      RETURN 
+000820 REM ------------------------------------------------
+000830 LOE10: ! Einstellungen löschen
+000840      DELETE #10,KY10$
+000850      RETURN 

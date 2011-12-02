@@ -1,0 +1,31 @@
+000010 REM Programm zur Anzeige der kontakt_idx.tpl Datei
+000020 REM 02.12.2008 - Schmidt (Programmerstellung)
+000030 REM 22.05.2008 - Schmidt (Fehlerbehandlung)
+000031 REM 14.11.2008 - Schmidt (Umbau auf "OPA" - Version 2)
+000040 
+000050      INCLUDE "CGI"
+000060      INCLUDE "WFKIFEHL.INC" ! Fehlerbehanldung
+000070      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000080      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000090 
+000100      OPTION VERSION 2.0.01,"Mittermeier & Ungelenk GmbH"
+000110 
+000120      ON ERROR GOTO ERROR.ROUT
+000130 
+000140 REM *******************************************************
+000150      CALL CGI.INIT
+000160      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000170      CALL CGI.GET("sid",ADDROF(SID$)) ! Passwort übernehmen
+000180 REM *******************************************************
+000190 REM ************ Session prüfen ***************
+000200      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000210      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000220 REM *******************************************
+000230      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000240      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000250      CALL CGI.TEMPLATE("/wwwroot/opa/tpl/kontakt_idx.tpl")
+000260 ENDE:
+000270      END \ QUIT 
+000280 REM ------------------------------------------------
+000290 ERROR.ROUT:
+000300      RC$ = FN.WFKIFEHL$("kontakt_idx",ERR,ERL,CRC$,FL%)

@@ -1,0 +1,28 @@
+000010 REM Programm zur Anzeige der kontakt_idx.tpl Datei
+000020 REM 02.04.2009 - Schmidt (Programmerstellung)
+000030      INCLUDE "CGI"
+000040      INCLUDE "WFKIFEHL.INC" ! Fehlerbehanldung
+000050      INCLUDE "WFFOOTER.INC" ! Fußzeile
+000060      INCLUDE "WFSESSION.INC" ! Sessionmanagement
+000070 
+000080      OPTION VERSION 1.0.01,"Mittermeier & Ungelenk GmbH"
+000090 
+000100      ON ERROR GOTO ERROR.ROUT
+000110 
+000120 REM *******************************************************
+000130      CALL CGI.INIT
+000140      CALL CGI.GET("kdnr",ADDROF(KDNR$)) ! Kundennummer übernehmen
+000150      CALL CGI.GET("sid",ADDROF(SID$)) ! Passwort übernehmen
+000160 REM *******************************************************
+000170 REM ************ Session prüfen ***************
+000180      FKDNR$ = FORMAT$(VAL(KDNR$),"999999")
+000190      RC$ = FN.WFSESSION$("session.update",SID$,FKDNR$)
+000200 REM *******************************************
+000210      CALL CGI.TEMPLATE.VAR("kdnr",KDNR$)
+000220      RC$ = FN.WFFOOTER$(NIX$) ! Fußzeile
+000230      CALL CGI.TEMPLATE("/wwwroot/opbk/tpl/kontakt_idx.tpl")
+000240 ENDE:
+000250      END \ QUIT 
+000260 REM ------------------------------------------------
+000270 ERROR.ROUT:
+000280      RC$ = FN.WFKIFEHL$("kontakt_idx",ERR,ERL,CRC$,FL%)
