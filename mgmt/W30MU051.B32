@@ -1,0 +1,558 @@
+000010 REM W30MU051: Benutzerverwaltung OPA
+000020 REM 07.03.2008 Schmidt - (Programmerstellung)
+000030 REM 13.03.2008 Schmidt - (Bewohnersperre)
+000040 REM 02.04.2008 Schmidt - (Zugriffsstatistik)
+000050 REM 08.04.2008 Schmidt - (Steuerung Lizenznummer 1KISS fistam.rei)
+000060 REM 10.04.2008 Schmidt - (Bewohner ändern)
+000070 REM 30.04.2008 Schmidt - (eMail Protokoll pro Benutzer)
+000080 REM 05.05.2008 Schmidt - (Parameter für KISS Server)
+000090 REM 13.05.2008 Schmidt - (Bewohner Anmelden Merker/Zähler)
+000100 REM 14.05.2008 Schmidt - (Datenaustausch KISS System)
+000110 REM 14.05.2008 Schmidt - (Parameter gesperrte Artikel anzeigen)
+000120 REM 14.05.2008 Schmidt - (Parameter Artikel ohne Ausgang anzeigen)
+000130 REM 23.05.2008 Schmidt - (Parameter für Mailserver)
+000140 REM 28.05.2008 Schmidt - (Parameter für letzte eingegange Artikel)
+000150 REM 04.06.2008 Schmidt - (Parameter für Protokolldrucker)
+000160 REM 11.06.2008 Schmidt - (sel%=0 abfragen)
+000170 REM 19.06.2008 Schmidt - (Lizenzanzahl + verbrauchte Lizenzen)
+000180 REM 31.10.2008 Schmidt - (Tagesgenaueabmeldung)
+000190 REM 14.11.2008 Schmidt - (Umbau auf "OPA")
+000200 REM 09.10.2009 Schmidt - (Fehlerprotokoll)
+000210 
+000220      INCLUDE "WFFEHLER" ! Fehlerprotokoll
+000230      INCLUDE "WFEINGAB" ! Eingabe
+000240      INCLUDE "WFHILFE1" ! Hilfeanzeige
+000250      INCLUDE "WFKUSUWO" ! Kundensuchwort
+000260 
+000270      OPTION PROMPT "", COMMA, CASE "U", LOCK 1
+000280      OPTION VERSION 1.0.19,"Mittermeier & Ungelenk GmbH"
+000290 
+000300      COMMON KAZ$(50),EURO$(50),ZNR$,ZNR%,XR1$,XR1%,XR2$,XR2%,XR3$,XR3%,XR8$,XR8%,XR9$,XR9%,XR4$,XR4,XR5$,XR5,HL$,DK$,RVE$,RVA$,UL$,ULA$,BO$,BOA$,BE$,EO$,RT1$,RT2$,RT3$,RT4$,XD1$,XD2$,XD3$,XD4$,XD5$,P1$,P2$,P3$,P4$,P5$,VE%,A1%
+000310 
+000320 
+000330      DIM WFKMG$(5000)
+000340      PRINT AT$(1,1);CRT$("clear");"SONDERPROGRAMME";AT$(72,1);DK$;"091009";FORMAT$(VE%,"999");HL$;
+000350      PRINT AT$(1,2);"Benutzerverwaltung OPA";AT$(59,2);DATE$(0);DK$;"   W30MU051-";HL$;KAZ$(4);
+000360      ON ERROR GOTO ERROR.ROUT
+000370      FL% = 1 \ OPEN #1:"KUSTWA.REI", INPUT INDEXED \ CLEAR FL%
+000380      FL% = 2 \ OPEN #2:"/WWWROOT/OPA/PARAMET.OPA", UPDATE INDEXED \ CLEAR FL% ! Parameter KISS
+000390      FL% = 3 \ OPEN #3:"/WWWROOT/OPA/PASSWRD.OPA", UPDATE INDEXED \ CLEAR FL% ! Passcode KISS
+000400      FL% = 4 \ OPEN #4:"FISTAM.REI", INPUT INDEXED \ CLEAR FL% ! Firmenstamm
+000410      READ #4,ZNR$&"MU18":XX%,DRFOR18$ \ UNLOCK #4
+000420      READ #4,ZNR$&"KISS":MAX.USER$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$,FPORT$,DRU$ \ UNLOCK #4 \ CLOSE #4
+000430      FL% = 8 \ OPEN #8:"KUSUWO.REI", INPUT INDEXED \ CLEAR FL% ! Suchwort
+000440      EOL$ = CRT$("EOL")
+000450      A1% = 3 ! Modus "Anzeigen" vorbelegen
+000460 START:
+000470      IF A1%=1 THEN PRINT AT$(35,2);RVE$;"Anlegen ";RVA$;
+000480      IF A1%=2 THEN PRINT AT$(35,2);RVE$;"Ändern  ";RVA$;
+000490      IF A1%=3 THEN PRINT AT$(35,2);RVE$;"Anzeigen";RVA$;
+000500      IF A1%=4 THEN PRINT AT$(35,2);RVE$;"Löschen ";RVA$;
+000510 
+000520      PRINT AT$(1,4);"01 Kundennummer.......:";EO$;
+000530      PRINT AT$(1,5);"02 Passwort...........:";EO$;
+000540      PRINT AT$(1,6);"03 eMail Protokoll....:";EO$;
+000550      PRINT AT$(4,8);CRT$("ULON");"BEWOHNER";CRT$("ULOFF");EO$;
+000560      PRINT AT$(1,9);"04 Bewohnerstammdaten.:";EO$;
+000570      PRINT AT$(1,10);"05 Bewohnerartikel....:";EO$;
+000580      PRINT AT$(1,11);"06 Bewohner anlegen...:";EO$;
+000590      PRINT AT$(1,12);"07 Bewohnerlisten.....:";EO$;
+000600      PRINT AT$(1,13);"08 Bewohner sperren...:";EO$;
+000610      PRINT AT$(1,14);"09 Bewohner ändern....:";EO$;
+000620      PRINT AT$(1,15);"10 gesperrte Artikel..:";EO$;
+000630      PRINT AT$(1,16);"11 Artikel o. Ausgang.:";EO$;
+000640      PRINT AT$(1,17);"12 letzter e. Auftrag.:";EO$;
+000650 
+000660 E1: ! Kundennummer
+000670      GOSUB STI \ PRINT AT$(1,22);"F1=HILFE   F2=ANLEGEN   F3=ÄNDERN   F4=ANZEIGEN   F5=LÖSCHEN   F6=DATENTRANSFER"; \ PRINT AT$(1,23);"1-99999=KUNDENNUMMER    F7=ÜBERSICHT  F8=SUCHEN   F10/ E=ENDE";
+000680      KNR$ = FNEG$(KNR$,4,25,6,1,1,"",0,0) ! Eingabe
+000690      IF INP=7 THEN KNR$ = FNWFKUSUWO$(KNR$,0,0,0,0,1) \ GOTO E1.1 ! F8 Suchname
+000700      IF INP=3 ! F7 - Übersicht wer freigeschaltet ist
+000710           FOR WFANZ = 1 TO 5000 ! Speicher löschen
+000720                WFKMG$(WFANZ) = ""
+000730                NEXT WFANZ
+000740           CLEAR WFANZ,WFLFD
+000750           KY2$ = "1"
+000760           GOSUB L2 !
+000770           GOSUB L21      ! nächsten Satz lesen
+000780           WHILE NOT EOF(2) OR WFLFD>=4999 ! Kunde lesen und anzeigen
+000790                WFANZ = WFANZ+1
+000800                KY1$ = ZNR$&XKNR$
+000810                GOSUB L1 ! Satz lesen kustwa.rei
+000820                WFKMG$(WFANZ) = FORMAT$(VAL(XKNR$),"######")&SPACE$(5)&KA1$&SPACE$(5)&KA2$
+000830                GOSUB L21 ! nächsten Satz lesen
+000840                WEND 
+000850           WFTITEL$ = "KUNDNR     NAME1                         NAME2                              "
+000860           IF WFANZ<1 ! noch kein Kunde freigeschaltet
+000870                WFANZ = 1
+000880                WFKMG$(1) = "                KEINE KUNDEN FÜR ONLINEZUGANG FREIGESCHALTET"
+000890                KK% = 1 ! Merker kein Kunde
+000900                IFEND 
+000910           WINDOW CHOICE KEEP 3,2,7,WFANZ,WFKMG$,SEL%; HEIGHT 10; WIDTH 76; COLOR 0,7,7,4; TITLE WFTITEL$, COLOR 6,0, LEFT 
+000920           IF SEL%<0 THEN GOTO 910 ! ungültig
+000930           IF SEL%=0 ! ESC
+000940                WINDOW CLOSE 3, REMOVE 
+000950                GOTO START
+000960                IFEND 
+000970           IF SEL%>=0   ! Auswahl auf KNR$ ablegen und prüfen ggf anzeigen
+000980                KNR$ = WFKMG$(SEL%)[1:6]
+000990                WINDOW CLOSE 3, REMOVE 
+001000                IF KK%=1 THEN GOTO START ELSE GOTO E1.1
+001010                IFEND 
+001020           IFEND 
+001030      IF KNR$[1:1]="P" AND INP=1 ! Parameterseite - P+F3
+001040           KY2$ = "1"
+001050           GOSUB L2 ! ersten Satz KIPARAM.KISS
+001060           GOSUB L21 ! nächsten Satz KIPARAM.KISS
+001070           WHILE NOT EOF(2)
+001080                VL% = VL%+1 ! verbrauchte Lizenzen
+001090                GOSUB L21
+001100                WEND 
+001110           PRINT AT$(1,4);EO$;
+001120           PRINT AT$(4,8);CRT$("ULON");"PARAMETER";CRT$("ULOFF");
+001130           PRINT AT$(1,9);"90 KISS Server IP.....:";
+001140           PRINT AT$(1,10);"91 FTP Benutzername...:";
+001150           PRINT AT$(1,11);"92 FTP Passwort.......:";
+001160           PRINT AT$(1,12);"93 Mailserver.........:";
+001170           PRINT AT$(1,13);"94 Mailserver Benutzer:";
+001180           PRINT AT$(1,14);"95 Mailserver Passwort:";
+001190           PRINT AT$(1,15);"96 Mailserver Port....:";
+001200           PRINT AT$(1,16);"97 FTP-Server Port....:";
+001210           PRINT AT$(1,17);"98 Protokolldrucker...:";
+001220           PRINT AT$(1,18);UL$;"99 Lizenzanzahl.......: ";MAX.USER$&" / "&STR$(VL%);ULA$; \ CLEAR VL%
+001230      P.1: ! Parameter 1 - Server IP
+001240           KIP$ = FNEG$(KIP$,9,25,25,0,1,"",0,0) ! Eingabe
+001250           IF INP=11 THEN CLEAR KNR$ \ GOTO START ! Feld zurück
+001260           IF (INP=13 OR INP=10) AND TRIM$(KIP$)<>"" THEN GOTO P.2
+001270           IF INP<>0 THEN GOTO P.1 ! keine anderen Tasten
+001280      P.2: ! Parameter 2 - Benutzername
+001290           KUS$ = FNEG$(KUS$,10,25,25,0,1,"",1,0) ! Eingabe
+001300           IF INP=11 THEN GOTO P.1 ! Feld zurück
+001310           IF (INP=13 OR INP=10) AND TRIM$(KUS$)<>"" THEN GOTO P.3
+001320           IF INP<>0 THEN GOTO P.2 ! keine anderen Tasten
+001330      P.3: ! Parameter 3 - Passwort
+001340           KPW$ = FNEG$(KPW$,11,25,25,0,1,"",1,0) ! Eingabe
+001350           IF INP=11 THEN GOTO P.2 ! Feld zurück
+001360           IF INP=13 OR INP=10 THEN GOTO P.4 ! auch ohne Kennwort schr.
+001370           IF INP<>0 THEN GOTO P.3 ! keine anderen Tasten
+001380      P.4: ! Parameter 4 - Mailserver
+001390           MIP$ = FNEG$(MIP$,12,25,40,0,1,"",1,0) ! Eingabe
+001400           IF INP=11 THEN GOTO P.3 ! Feld zurück
+001410           IF (INP=13 OR INP=10) AND TRIM$(MIP$)<>"" THEN GOTO P.5
+001420           IF INP<>0 THEN GOTO P.4 ! keine anderen Tasten
+001430      P.5: ! Parameter 5 - Mailserver Benutzer
+001440           MUS$ = FNEG$(MUS$,13,25,40,0,1,"",1,0) ! Eingabe
+001450           IF INP=11 THEN GOTO P.4 ! Feld zurück
+001460           IF INP=13 OR INP=10 THEN GOTO P.6
+001470           IF INP<>0 THEN GOTO P.5 ! keine anderen Tasten
+001480      P.6: ! Parameter 6 - Mailserver Passwort
+001490           MPAS$ = FNEG$(MPAS$,14,25,40,0,1,"",1,0) ! Eingabe
+001500           IF INP=11 THEN GOTO P.5 ! Feld zurück
+001510           IF INP=13 OR INP=10 THEN GOTO P.7
+001520           IF INP<>0 THEN GOTO P.6 ! keine anderen Tasten
+001530      P.7: ! Parameter 7 - Mailserver Port
+001540           MPORT$ = FNEG$(MPORT$,15,25,4,0,1,"",1,0) ! Eingabe
+001550           IF INP=11 THEN GOTO P.6 ! Feld zurück
+001560           IF INP=13 OR INP=10 THEN GOTO P.8 !
+001570           IF INP<>0 THEN GOTO P.7 ! keine anderen Tasten
+001580      P.8: ! Parameter 8 - FTP-Server Port
+001590           FPORT$ = FNEG$(FPORT$,16,25,4,0,1,"",1,0) ! Eingabe
+001600           IF INP=11 THEN GOTO P.7 ! Feld zurück
+001610           IF INP=13 OR INP=10 THEN GOTO P.9 ! nächster Parameter
+001620           IF INP<>0 THEN GOTO P.8 ! keine anderen Tasten
+001630      P.9: ! Parameter 9 - Protokolldrucker
+001640           DRU$ = FNEG$(DRU$,17,25,2,0,1,"",1,0) ! Eingabe
+001650           IF INP=11 THEN GOTO P.8 ! Feld zurück
+001660           IF INP=13 OR INP=10 THEN GOTO PS !
+001670           IF INP<>0 THEN GOTO P.9 ! keine anderen Tasten
+001680      PS: ! Parameter schreiben
+001690           OPEN #4:"/FISTAM.REI", OUTPUT INDEXED 
+001700           WRITE #4,ZNR$&"KISS":MAX.USER.CRYPT$,KIP$,KUS$,KPW$,MIP$,MUS$,MPAS$,MPORT$,FPORT$,DRU$ \ CLOSE #4
+001710           CLEAR KNR$ \ GOTO START
+001720           IFEND 
+001730      IF INP=28 ! F6 Syncronisieren KISS System
+001740           PRINT AT$(1,4);CRT$("EOS");
+001750           LINPUT ""&AT$(1,23)&"DATENAUSTAUSCH STARTEN?  J=JA   N=NEIN ", USING RPAD$("",1),JN$
+001760           IF JN$<>"J" THEN GOTO START
+001770           GOSUB STI
+001780           SYSTEM "cd wwwroot/opa"
+001790           WINDOW OPEN 10,5,5,72,5; TITLE " Datenaustausch ", COLOR 7,4; FRAME DOUBLE, COLOR 7,4, RIGHT; COLOR 7,4,4,0
+001800           WINDOW SELECT 10
+001810           CONNECT$ = "ftp "&TRIM$(KIP$)&":"&TRIM$(FPORT$)&" """&TRIM$(KUS$)&""" """&TRIM$(KPW$)&""" (BIN SEND /WWWROOT/OPA/PARAMET.OPA VERBOSE"
+001820           SYSTEM CONNECT$
+001830           CONNECT$ = "ftp "&TRIM$(KIP$)&":"&TRIM$(FPORT$)&" """&TRIM$(KUS$)&""" """&TRIM$(KPW$)&""" (BIN SEND /WWWROOT/OPA/PASSWRD.OPA VERBOSE"
+001840           SYSTEM CONNECT$
+001850           SYSTEM "cd"
+001860           CONNECT$ = "ftp "&TRIM$(KIP$)&":"&TRIM$(FPORT$)&" """&TRIM$(KUS$)&""" """&TRIM$(KPW$)&""" (BIN SEND FISTAM.REI VERBOSE"
+001870           SYSTEM CONNECT$
+001880           SYSTEM "cd wwwroot/opa"
+001890           CONNECT$ = "ftp "&TRIM$(KIP$)&":"&TRIM$(FPORT$)&" """&TRIM$(KUS$)&""" """&TRIM$(KPW$)&""" (BIN RECEIVE /WWWROOT/OPA/ZUGRIFF.OPA VERBOSE"
+001900           SYSTEM CONNECT$
+001910           CONNECT$ = "ftp "&TRIM$(KIP$)&":"&TRIM$(FPORT$)&" """&TRIM$(KUS$)&""" """&TRIM$(KPW$)&""" (BIN RECEIVE /WWWROOT/OPA/STAMMDA.OPA VERBOSE"
+001920           SYSTEM CONNECT$
+001930           LINPUT ""&AT$(1,10)&"RETURN=ENDE", USING RPAD$("",1),JN$
+001940           SYSTEM "cd"
+001950           WINDOW CLOSE 10, REMOVE 
+001960           GOSUB STI \ PRINT AT$(1,23);"DATENAUSTAUSCH BEENDET"; \ SLEEP 2 \ GOTO START
+001970           IFEND 
+001980      IF INP=23 THEN GOSUB HILFE ! Hilfetext
+001990      IF INP=24 THEN A1% = 1 \ GOTO START ! Modus "Anlegen"
+002000      IF INP=1 THEN A1% = 2 \ GOTO START ! Modus "Ändern"
+002010      IF INP=4 THEN A1% = 3 \ GOTO START ! Modus "Anzeigen"
+002020      IF INP=14 THEN A1% = 4 \ GOTO START ! Modus "Löschen"
+002030      IF INP=6 OR INP=11 OR INP=27 OR KNR$[1:1]="E" THEN GOTO ENDE
+002040      IF INP<>0 THEN GOTO E1 ! keine anderen F-Tasten
+002050 E1.1: ! Kundennummer prüfen
+002060      KNR$ = FORMAT$(VAL(KNR$),"999999")
+002070      PRINT AT$(25,4);KNR$;
+002080      PRINT AT$(35,4);KNR$;
+002090      IF NOT NBR(KNR$) OR VAL(KNR$)<0 THEN GOTO E1 ! ungültig
+002100      IF A1%=1 ! Anlegen
+002110           IF VAL(KNR$)<=0 THEN GOTO E1 ! ungültig
+002120           KY1$ = ZNR$&KNR$
+002130           GOSUB L1 ! Lesen KUSTWA.REI
+002140           IF EOF(1) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT ANGELEGT!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+002150           IF KT$[162:162]<>"9" ! falscher Abrechnungschlüssel
+002160                GOSUB STI
+002170                PRINT AT$(1,23);"ABRECHNUNGSSCHLÜSSEL IM KUNDENSTAMM FEHLT!"; \ SLEEP 3
+002180                CLEAR KNR$ \ GOTO E1
+002190                IFEND 
+002200           KY2$ = "1"
+002210           GOSUB L2 !
+002220           GOSUB L21
+002230           WHILE NOT EOF(2)
+002240                GOSUB L21
+002250                FGK% = FGK%+1
+002260                WEND 
+002270           IF FGK%>=VAL(MAX.USER$) ! Max. User laut Lizenz erreicht
+002280                GOSUB STI \ PRINT AT$(1,23);"LIZENZMAXIMUM ERREICHT ("&MAX.USER$&" Kunden)"; \ SLEEP 3
+002290                CLEAR FGK% \ GOTO E1
+002300                IFEND 
+002310           KY2$ = ZNR$&KNR$
+002320           GOSUB L2 ! Kunde lesen
+002330           IF NOT EOF(2) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE BEREITS FREIGESCHALTET!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+002340           GOSUB KUA1 ! Kunden anzeigen
+002350           IFEND 
+002360      IF A1%=2 ! Ändern
+002370           IF VAL(KNR$)<=0 THEN GOTO E1 ! ungültig
+002380           KY1$ = ZNR$&KNR$
+002390           GOSUB L1 ! Lesen KUSTWA.REI
+002400           IF EOF(1) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT ANGELEGT!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO START
+002410           KY2$ = ZNR$&KNR$
+002420           GOSUB L2
+002430           IF EOF(2) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT FREIGESCHALTET!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO START
+002440           GOSUB KUA1 ! Kunde anzeigen
+002450           GOTO E2 ! Passwort
+002460           IFEND 
+002470      IF A1%=3 ! Anzeigen
+002480           IF VAL(KNR$)=0
+002490                PRINT AT$(56,4);CRT$("RVON");"Zugriffsstatistik";CRT$("RVOFF");
+002500                PRINT AT$(56,5);CRT$("RVON");"A L L E          ";CRT$("RVOFF");
+002510                GOSUB STI
+002520                GOTO 2900
+002530                IFEND 
+002540           KY1$ = ZNR$&KNR$
+002550           GOSUB L1 ! Lesen KUSTWA.REI
+002560           IF EOF(1) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT ANGELEGT!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+002570           KY2$ = ZNR$&KNR$
+002580           GOSUB L2
+002590           IF EOF(2) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT FREIGESCHALTET!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+002600 
+002610           PRINT AT$(25,5);PW$;
+002620           PRINT AT$(25,6);STR$(EMAIL%);EOL$;
+002630           PRINT AT$(25,9);STR$(BST%)&EOL$;
+002640           PRINT AT$(25,10);STR$(BAR%)&EOL$;
+002650           PRINT AT$(27,10);STR$(BARV%)&EOL$;
+002660           PRINT AT$(25,11);STR$(BAN%)&EOL$;
+002670           PRINT AT$(25,12);STR$(BLI%)&EOL$;
+002680           PRINT AT$(25,13);STR$(BSP%)&EOL$;
+002690           PRINT AT$(25,14);STR$(BAE%)&EOL$;
+002700           PRINT AT$(25,15);STR$(BGAR%)&EOL$;
+002710           PRINT AT$(25,16);STR$(BAOA%)&EOL$;
+002720           PRINT AT$(25,17);STR$(BLA%)&EOL$;
+002730           PRINT AT$(27,14);STR$(BTA%)&EOL$;
+002740 
+002750           IF EMAIL%=1 THEN PRINT AT$(30,6);CRT$("ULON");"ja  ";CRT$("ULOFF") ELSE PRINT AT$(30,6);CRT$("ULON");"nein";CRT$("ULOFF");
+002760           IF BST%=1 THEN PRINT AT$(30,9);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,9);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002770           IF BAR%=1 THEN PRINT AT$(30,10);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,10);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002780           IF BARV%=1 THEN PRINT AT$(40,10);CRT$("ULON");"vollständig  ";CRT$("ULOFF") ELSE PRINT AT$(40,10);CRT$("ULON");"unvollständig";CRT$("ULOFF");
+002790           IF BAN%=1 THEN PRINT AT$(30,11);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,11);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002800           IF BLI%=1 THEN PRINT AT$(30,12);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,12);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002810           IF BSP%=1 THEN PRINT AT$(30,13);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,13);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002820           IF BAE%=1 THEN PRINT AT$(30,14);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,14);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+002830           IF BGAR%=1 THEN PRINT AT$(30,15);CRT$("ULON");"anzeigen      ";CRT$("ULOFF") ELSE PRINT AT$(30,15);CRT$("ULON");"nicht anzeigen";CRT$("ULOFF");
+002840           IF BAOA%=1 THEN PRINT AT$(30,16);CRT$("ULON");"anzeigen      ";CRT$("ULOFF") ELSE PRINT AT$(30,16);CRT$("ULON");"nicht anzeigen";CRT$("ULOFF");
+002850           IF BLA%=1 THEN PRINT AT$(30,17);CRT$("ULON");"erlaubt       ";CRT$("ULOFF") ELSE PRINT AT$(30,17);CRT$("ULON");"verwehrt      ";CRT$("ULOFF");
+002860           IF BTA%=1 THEN PRINT AT$(40,14);CRT$("ULON");"erlaubt       ";CRT$("ULOFF") ELSE PRINT AT$(40,14);CRT$("ULON");"verwehrt      ";CRT$("ULOFF");
+002870 
+002880           GOSUB KUA1 ! Kunden anzeigen
+002890           PRINT AT$(1,22);CRT$("EOS")
+002900           LINPUT ""&AT$(1,23)&"ZUGRIFFSSTATISTIK ANZEIGEN?  J=JA   N=NEIN ", USING RPAD$("",1),JN$
+002910           IF JN$<>"J" THEN CLEAR JN$,KNR$ \ GOTO E1
+002920           FOR WFANZ = 1 TO 5000 ! Speicher löschen
+002930                WFKMG$(WFANZ) = ""
+002940                NEXT WFANZ
+002950           CLEAR WFANZ,WFLFD
+002960           FL% = 5 \ OPEN #5:"/WWWROOT/OPA/ZUGRIFF.OPA", INPUT INDEXED ! Zugriffsstatistik
+002970           KY5$ = "1"&KNR$
+002980           GOSUB L5 ! ersten Satz lesen ZUGRIFF.KISS
+002990           GOSUB L51 ! nächsten Satz lesen ZUGRIFF.KISS
+003000           SELECT 
+003010                CASE VAL(KNR$)>0
+003020                     IF EOF(5) OR KY5$[2:7]<>KNR$ THEN GOTO 3090
+003030                OTHERWISE 
+003040                     IF EOF(5) THEN GOTO 3090
+003050                CEND 
+003060           WFANZ = WFANZ+1
+003070           WFKMG$(WFANZ) = FORMAT$(WFANZ,"###")&SPACE$(4)&FORMAT$(VAL(XKNR$),"######")&SPACE$(4)&ZD$&SPACE$(8)&ZZ$&SPACE$(8)&ZB$
+003080           GOTO 2990 ! nächsten Satz
+003090           IF WFANZ=0 ! kein Zugriff reg. - Hinweis zeigen
+003100                WFANZ = WFANZ+2
+003110                WFKMG$(1) = " " ! Leerzeile im Fenster
+003120                WFKMG$(2) = SPACE$(25)&"NOCH KEIN ZUGRIFF REGISTRIERT"
+003130                IFEND 
+003140           WFTITEL$ = "POS    KUNDNR    ZUGRIFFS-DATUM    ZUGRIFFS-ZEIT   BROWSER                    "
+003150           WINDOW CHOICE KEEP 3,2,7,WFANZ,WFKMG$,SEL%; HEIGHT 10; WIDTH 76; COLOR 0,7,7,4; TITLE WFTITEL$, COLOR 6,0, LEFT 
+003160           IF SEL%<0 THEN GOTO 3150 ! ungültig
+003170           WINDOW CLOSE 3, REMOVE 
+003180           CLOSE #5 \ CLEAR KNR$,JN$,FL% \ GOTO E1
+003190           IFEND 
+003200      IF A1%=4 ! Löschen
+003210           IF VAL(KNR$)<=0 THEN GOTO E1 ! ungültig
+003220           KY1$ = ZNR$&KNR$
+003230           GOSUB L1 ! Lesen KUSTWA.REI
+003240           IF EOF(1) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT ANGELEGT!" \ SLEEP 3 \ CLEAR KNR$ \ GOTO START
+003250           KY2$ = ZNR$&KNR$
+003260           GOSUB L2 ! Kunde lesen /KISS/KIPARAM.KISS
+003270           IF EOF(2) THEN GOSUB STI \ PRINT AT$(1,23);"KUNDE NICHT FREIGESCHALTET"; \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+003280           IF NOT EOF(2) ! Kunde freigeschaltet - löschen?
+003290                GOSUB KUA1 ! Kunden anzeigen
+003300                GOSUB STI
+003310                LINPUT ""&AT$(1,23)&"KUNDEN-NR."&FORMAT$(VAL(KNR$),"######")&" FÜR DEN ONLINEZUGRIFF LÖSCHEN?  J=JA   N=NEIN ", USING RPAD$("",1),JN$
+003320                IF JN$<>"J" THEN CLEAR JN$,KNR$ \ GOTO E1
+003330                KY2$ = ZNR$&KNR$
+003340                KY3$ = KNR$
+003350                GOSUB LOESCH2
+003360                GOSUB LOESCH3
+003370                GOSUB STI \ PRINT AT$(1,23);"ONLINEZUGANG FÜR KUNDEN-NR. "&FORMAT$(VAL(KNR$),"######")&" GELÖSCHT!"; \ SLEEP 3 \ CLEAR KNR$ \ GOTO E1
+003380                IFEND 
+003390           IFEND 
+003400 
+003410 E2: ! Passwort
+003420      GOSUB STI \ PRINT AT$(1,23);"PASSWORT = [a-z]/[A-Z]/[0-9]  F1=HILFE   F10/ E=ENDE";
+003430      PW$ = FNEG$(PW$,5,25,25,0,0,"",1,0) ! Eingabe
+003440      IF INP=11 THEN CLEAR KNR$ \ GOTO E1
+003450      IF INP=6 OR INP=27 THEN GOTO ENDE
+003460      IF (INP=13 OR INP=10) AND TRIM$(PW$)<>"" THEN GOTO E2.1
+003470      IF INP<>0 THEN GOTO E2 ! keine anderen F-Tasten
+003480 E2.1: ! eMail Protokoll
+003490      GOSUB STI \ PRINT AT$(1,23);"EMAIL PROTOKOLL?  0=NEIN  1=JA    F1=HILFE   F10/ E=ENDE";
+003500      EMAIL% = VAL(FNEG$(STR$(EMAIL%),6,25,1,1,0,"",0,0)) ! Eingabe
+003510      IF INP=11 THEN GOTO E2
+003520      IF INP=6 OR INP=27 THEN GOTO ENDE
+003530      IF EMAIL%>1 OR EMAIL%<0 THEN GOTO E2.1
+003540      IF EMAIL%=1 THEN PRINT AT$(30,6);CRT$("ULON");"ja  ";CRT$("ULOFF") ELSE PRINT AT$(30,6);CRT$("ULON");"nein";CRT$("ULOFF");
+003550      IF STR$(EMAIL%)<>"" AND (INP=13 OR INP=10) THEN GOTO E3
+003560      IF INP<>0 THEN GOTO E2.1 ! keine anderen F-Tasten
+003570 E3: ! Zugang auf Bewohnerstammdaten 0=Nein = Ja
+003580      GOSUB STI \ PRINT AT$(1,23);"STAMMDATEN?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+003590      BST% = VAL(FNEG$(STR$(BST%),9,25,1,1,0,"",0,0)) ! Eingabe
+003600      IF INP=11 THEN GOTO E2.1
+003610      IF INP=6 OR INP=27 THEN GOTO ENDE
+003620      IF BST%>1 OR BST%<0 THEN GOTO E3
+003630      IF BST%=1 THEN PRINT AT$(30,9);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,9);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+003640      IF STR$(BST%)<>"" AND (INP=13 OR INP=10) THEN GOTO E4
+003650      IF INP<>0 THEN GOTO E3 ! keine anderen F-Tasten
+003660 E4: ! Zugang auf Bewohnertrikel 0=Nein = Ja
+003670      GOSUB STI \ PRINT AT$(1,23);"BEWOHNERARTIKEL?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+003680      BAR% = VAL(FNEG$(STR$(BAR%),10,25,1,1,0,"",0,0)) ! Eingabe
+003690      IF INP=11 THEN GOTO E3
+003700      IF INP=6 OR INP=27 THEN GOTO ENDE
+003710      IF BAR%>1 OR BAR%<0 THEN GOTO E4
+003720      IF BAR%=1 THEN PRINT AT$(30,10);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,10);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+003730      IF BAR%=1 AND (INP=13 OR INP=10) THEN GOTO E4.1
+003740      IF BAR%=0 AND (INP=13 OR INP=10) THEN GOTO E5
+003750      IF BAR%=1 THEN GOTO E4.1
+003760      IF BAR%=0 THEN BARV% = 0 \ GOTO E5
+003770      IF INP<>0 THEN GOTO E4 ! keine anderen F-Tasten
+003780 E4.1: ! Bewohnerartikel "Ja" - Liste vollständig?
+003790      GOSUB STI \ PRINT AT$(1,23);"LISTENART?  0=UNVOLLSTÄNDIG  1=VOLLSTÄNDIG ";
+003800      BARV% = VAL(FNEG$(STR$(BARV%),10,27,1,1,0,"",0,0)) ! Eingabe
+003810      IF BARV%>1 OR BARV%<0 THEN GOTO E4.1 ! Fehleingabe
+003820      IF BARV%=1 THEN PRINT AT$(40,10);CRT$("ULON");"vollständig  ";CRT$("ULOFF") ELSE PRINT AT$(40,10);CRT$("ULON");"unvollständig";CRT$("ULOFF");
+003830      IF INP=11 THEN GOTO E4
+003840      IF STR$(BARV%)<>"" AND (INP=13 OR INP=10) THEN GOTO E5
+003850      IF INP<>0 THEN GOTO E4.1 ! keine anderen F-Tasten
+003860 E5: ! Zugang auf Bewohneranlegen 0=Nein = Ja
+003870      GOSUB STI \ PRINT AT$(1,23);"BEWOHNER ANLEGEN?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+003880      BAN% = VAL(FNEG$(STR$(BAN%),11,25,1,1,0,"",0,0)) ! Eingabe
+003890      IF INP=11 AND BAR%=0 THEN GOTO E4
+003900      IF INP=11 AND BAR%=1 THEN GOTO E4.1
+003910      IF INP=6 OR INP=27 THEN GOTO ENDE
+003920      IF BAN%>1 OR BAN%<0 THEN GOTO E5
+003930      IF BAN%=1 THEN PRINT AT$(30,11);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,11);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+003940      IF STR$(BAN%)<>"" AND (INP=13 OR INP=10) THEN GOTO E6
+003950      IF INP<>0 THEN GOTO E5 ! keine anderen F-Tasten
+003960 E6: ! Zugang auf Bewohnerlisten 0=Nein = Ja
+003970      GOSUB STI \ PRINT AT$(1,23);"BEWOHNERLISTEN?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+003980      BLI% = VAL(FNEG$(STR$(BLI%),12,25,1,1,0,"",0,0)) ! Eingabe
+003990      IF INP=11 THEN GOTO E5
+004000      IF INP=6 OR INP=27 THEN GOTO ENDE
+004010      IF BLI%>1 OR BLI%<0 THEN GOTO E6
+004020      IF BLI%=1 THEN PRINT AT$(30,12);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,12);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+004030      IF STR$(BLI%)<>"" AND (INP=13 OR INP=10) THEN GOTO E7
+004040      IF INP<>0 THEN GOTO E6 ! keine anderen F-Tasten
+004050 
+004060 E7: ! Bewohner sperren
+004070      GOSUB STI \ PRINT AT$(1,23);"SPERRUNG?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+004080      BSP% = VAL(FNEG$(STR$(BSP%),13,25,1,1,0,"",0,0)) ! Eingabe
+004090      IF INP=11 THEN GOTO E6
+004100      IF INP=6 OR INP=27 THEN GOTO ENDE
+004110      IF BSP%>1 OR BST%<0 THEN GOTO E7
+004120      IF BSP%=1 THEN PRINT AT$(30,13);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,13);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+004130      IF STR$(BSP%)<>"" AND (INP=13 OR INP=10) THEN GOTO E8
+004140      IF INP<>0 THEN GOTO E7 ! keine anderen F-Tasten
+004150 E8: ! Bewohner ändern
+004160      GOSUB STI \ PRINT AT$(1,23);"ÄNDERN?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+004170      BAE% = VAL(FNEG$(STR$(BAE%),14,25,1,1,0,"",0,0)) ! Eingabe
+004180      IF INP=11 THEN GOTO E7
+004190      IF INP=6 OR INP=27 THEN GOTO ENDE
+004200      IF BAE%>1 OR BAE%<0 THEN GOTO E8
+004210      IF BAE%=1 THEN PRINT AT$(30,14);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(30,14);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+004220      IF STR$(BAE%)<>"" AND (INP=13 OR INP=10) THEN GOTO E8.1
+004230      IF INP<>0 THEN GOTO E8 ! keine anderen F-Tasten
+004240 E8.1: ! Bewohner Tagegenau abmelden
+004250      IF KT$[452:452]<>"2" THEN GOTO E9 ! keine Tagegenaue Abrech.
+004260      GOSUB STI \ PRINT AT$(1,23);"TAGEGANAUE ABMELDUNG ZULASSEN?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+004270      BTA% = VAL(FNEG$(STR$(BTA%),14,27,1,1,0,"",0,0)) ! Eingabe
+004280      IF INP=11 THEN GOTO E8
+004290      IF INP=6 OR INP=27 THEN GOTO ENDE
+004300      IF BTA%>1 OR BTA%<0 THEN GOTO E8.1
+004310      IF BTA%=1 THEN PRINT AT$(40,14);CRT$("ULON");"erlaubt ";CRT$("ULOFF") ELSE PRINT AT$(40,14);CRT$("ULON");"verwehrt";CRT$("ULOFF");
+004320      IF STR$(BTA%)<>"" AND (INP=13 OR INP=10) THEN GOTO E9
+004330      IF INP<>0 THEN GOTO E8.1 ! keine anderen F-Tasten
+004340 E9: ! gesperrte Artikel anzeigen
+004350      GOSUB STI \ PRINT AT$(1,23);"GESPERRTE ARTIKEL?  0=NICHT ANZ.  1=ANZEIGEN    F1=HILFE   F10/ E=ENDE";
+004360      BGAR% = VAL(FNEG$(STR$(BGAR%),15,25,1,1,0,"",0,0)) ! Eingabe
+004370      IF INP=11 AND KT$[452:452]="2" THEN GOTO E8.1
+004380      IF INP=11 AND KT$[452:452]<>"" THEN GOTO E8
+004390      IF INP=6 OR INP=27 THEN GOTO ENDE
+004400      IF BGAR%>1 OR BGAR%<0 THEN GOTO E9
+004410      IF BGAR%=1 THEN PRINT AT$(30,15);CRT$("ULON");"anzeigen      ";CRT$("ULOFF") ELSE PRINT AT$(30,15);CRT$("ULON");"nicht anzeigen";CRT$("ULOFF");
+004420      IF STR$(BGAR%)<>"" AND (INP=13 OR INP=10) THEN GOTO E10
+004430      IF INP<>0 THEN GOTO E9 ! keine anderen F-Tasten
+004440 E10: ! Artikel ohne Ausgang
+004450      GOSUB STI \ PRINT AT$(1,23);"ARTIKEL OHNE AUSGANG?  0=NICHT ANZ.  1=ANZEIGEN   F1=HILFE   F10/ E=ENDE";
+004460      BAOA% = VAL(FNEG$(STR$(BAOA%),16,25,1,1,0,"",0,0)) ! Eingabe
+004470      IF INP=11 THEN GOTO E9
+004480      IF INP=6 OR INP=27 THEN GOTO ENDE
+004490      IF BAOA%>1 OR BAOA%<0 THEN GOTO E10
+004500      IF BAOA%=1 THEN PRINT AT$(30,16);CRT$("ULON");"anzeigen      ";CRT$("ULOFF") ELSE PRINT AT$(30,16);CRT$("ULON");"nicht anzeigen";CRT$("ULOFF");
+004510      IF STR$(BAOA%)<>"" AND (INP=13 OR INP=10) THEN GOTO E11
+004520      IF INP<>0 THEN GOTO E10 ! keine anderen F-Tasten
+004530 E11: ! Eingang der letzten Artikel
+004540      GOSUB STI \ PRINT AT$(1,23);"LETZTER EINGANG?  0=VERWEHRT  1=ERLAUBT   F1=HILFE   F10/ E=ENDE";
+004550      BLA% = VAL(FNEG$(STR$(BLA%),17,25,1,1,0,"",0,0)) ! Eingabe
+004560      IF INP=11 THEN GOTO E10
+004570      IF INP=6 OR INP=27 THEN GOTO ENDE
+004580      IF BLA%>1 OR BLA%<0 THEN GOTO E11
+004590      IF BLA%=1 THEN PRINT AT$(30,17);CRT$("ULON");"erlaubt       ";CRT$("ULOFF") ELSE PRINT AT$(30,17);CRT$("ULON");"verwehrt      ";CRT$("ULOFF");
+004600      IF STR$(BLA%)<>"" AND (INP=13 OR INP=10) THEN GOTO 4630
+004610      IF INP<>0 THEN GOTO E11 ! keine anderen F-Tasten
+004620 
+004630      IF A1%=1 OR A1%=2 ! Anlegen/Ändern
+004640           GOSUB STI \ LINPUT ""&AT$(1,23)&"ZUGANG FÜR KUNDEN-NR. "&FORMAT$(VAL(KNR$),"######")&" SPEICHERN?  J=JA   N=NEIN ", USING RPAD$("",1),JN$
+004650           IF JN$<>"J" THEN CLEAR JN$,KNR$ \ GOTO START
+004660           KY2$ = ZNR$&KNR$ ! Schlüssel KIPARAM.KISS
+004670           KY3$ = KNR$ ! Schlüssel KIPASSW.KISS
+004680           GOSUB S2 ! KIPARAM.KISS schreiben
+004690           GOSUB S3 ! KIPASSW.KISS schreiben
+004700           GOSUB STI \ CLEAR KNR$ \ GOTO START
+004710           IFEND 
+004720 ENDE: ! allg. Ausgang
+004730      CLOSE #1 \ CLOSE #2 \ CLOSE #3 \ CLOSE #8
+004740      CHAIN "W30MU00"
+004750      END 
+004760 REM *******************************************************************
+004770 ERROR.ROUT: ! Fehlerbehandlung
+004780      IF ERR=1 THEN RESUME 
+004790      IF ERR=30 AND FL%=2 THEN SYSTEM "create /WWWROOT/OPA/PARAMET.OPA (i file 500 keyl 10 recl 500" \ CLEAR FL% \ RESUME 
+004800      IF ERR=30 AND FL%=3 THEN SYSTEM "create /WWWROOT/OPA/PASSWRD.OPA (i file 500 keyl 10 recl 100" \ CLEAR FL% \ RESUME 
+004810      IF ERR=30 AND FL%=5 THEN SYSTEM "create /WWWROOT/OPA/ZUGRIFF.OPA (i file 100000 keyl 20 recl 100" \ CLEAR FL% \ RESUME 
+004820      IF ERR=48 THEN PRINT AT$(1,23);BE$;KAZ$(1);EO$; \ SLEEP 3 \ RESUME E1
+004830      RC = FN.WFFEHL("W30MU051",VAL(KAZ$(7)),ERR,FL%)
+004840      PR$ = "Fehler "&STR$(ERR)&" im Programm W30MU051, Zeile "&HEXOF$(ERL)
+004850      PRINT AT$(1,22);BE$;PR$;EO$;
+004860      LINPUT ""&AT$(1,23)&"RETURN = Programmende", USING RPAD$("",1),IN$
+004870      IF INP=10 OR INP=13 THEN RESUME ENDE
+004880      GOTO 4860 ! ungültig
+004890 REM --------------------------------------------------------------------
+004900 HILFE: ! Hilfe anzeigen
+004910      DIM HILFANZ$(1000),HILFANZ1$(1000)
+004920      FOR HILFZEI% = 1 TO 1000
+004930           HILFANZ$(HILFZEI%) = ""
+004940           NEXT HILFZEI%
+004950      CLEAR HILFZEI%
+004960      OPEN #99:"WASCH.ANLEI.W30MU051", INPUT SEQUENTIAL ! Hilfetext
+004970      WHILE NOT EOF(99) OR HILFZEI%>999
+004980           LINPUT #99:HILFZEI$
+004990           IF TRIM$(HILFZEI$)="" THEN HILFZEI$ = " " ! Leerzeile
+005000           HILFZEI% = HILFZEI%+1 ! Zeilenzähler
+005010           HILFANZ$(HILFZEI%) = HILFZEI$ ! Zeile ablegen
+005020           WEND 
+005030      CLOSE #99
+005040      WINDOW OPEN 1,1,23,80,1; COLOR 7,1,7,4; FRAME NONE 
+005050      WINDOW SELECT 1
+005060      PRINT AT$(1,1);"   PFEIL-TASTEN=BLÄTTERN   ESC=ENDE";
+005070      WINDOW CHOICE KEEP 2,2,4,HILFZEI%,HILFANZ$,SEL%; HEIGHT 18; WIDTH 76; COLOR 0,7,7,4; TITLE "EINGABEHILFE", COLOR 6,0; HELP 
+005080      IF SEL%<0 THEN WINDOW CLOSE 2, REMOVE \ WINDOW SELECT 0 \ 
+005090      WINDOW CLOSE ALL 
+005100      RETURN 
+005110 REM --------------------------------------------------------------------
+005120 STI: ! Zeilen 22-23 löschen
+005130      PRINT AT$(1,22);EO$;
+005140      RETURN 
+005150 REM --------------------------------------------------------------------
+005160 KUA1: ! Kundenname + Anschrift anzeigen
+005170      PRINT AT$(56,4);RVE$;KA1$; ! Name 1
+005180      PRINT AT$(56,5);KA2$; ! Name 2
+005190      PRINT AT$(56,6);KST$; ! Straße
+005200      PRINT AT$(56,7);FORMAT$(KPL,"#####-");KOR$[1:19]; ! Plz, Ort
+005210      IF TRIM$(KL$)<>"" THEN PRINT AT$(56,7);"TEL. ";KL$;SPACE$(5);RVA$; ELSE PRINT AT$(56,7);SPACE$(25);RVA$; ! Telefon
+005220      RETURN 
+005230 REM --------------------------------------------------------------------
+005240 L1: ! Kundenstamm lesen KUSTWA.REI
+005250      FL% = 1 \ READ #1,KY1$:K8%,K9%,KF%,KNR,KA1$,KA2$,KST$,KPL,KOR$,KL$,KSW$,KI$,KUG%,KDB,K1%,K2%,QQ1%,QQ2%,KKTU%,KGR%,KBK%,KAN%,KMG%,KBZ%,KLB$,K3%,KPO%,KOP%,KT$,K4%,K5% \ CLEAR FL%
+005260      RETURN 
+005270 REM --------------------------------------------------------------------
+005280 L2: ! Parameter lesen PARAMET.OPA
+005290      FL% = 2 \ READ #2,KY2$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA%,BLA%,BTA% \ CLEAR FL% \ UNLOCK #2
+005300      RETURN 
+005310 REM --------------------------------------------------------------------
+005320 L21: ! Parameter lesen PARAMET.OPA
+005330      FL% = 2 \ READNEXT #2,KY2$:XKNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA%,BLA%,BTA% \ CLEAR FL% \ UNLOCK #2
+005340      RETURN 
+005350 REM --------------------------------------------------------------------
+005360 S2: ! arameter schreiben PARAMET.OPA
+005370      FL% = 2 \ WRITE #2,KY2$:KNR$,PW$,BST%,BAR%,BAN%,BLI%,BSP%,BAE%,BARV%,EMAIL%,BGAR%,BAOA%,BLA%,BTA%,RES%,RES%,RES%,RES%,RES%,RES%,RES%,RES$,RES$,RES$,DATE$(0),TIME$(0) \ CLEAR FL%
+005380      RETURN 
+005390 REM --------------------------------------------------------------------
+005400 LOESCH2: ! Parameter löschen PARAMET.OPA
+005410      FL% = 2 \ DELETE #2,KY2$
+005420      RETURN 
+005430 REM --------------------------------------------------------------------
+005440 S3: ! Passwort schreiben PASSWRD.OPA
+005450      FL% = 3 \ WRITE #3,KY3$:KNR$,PW$,RES$,RES$,RES%,RES%,DATE$(0),TIME$(0) \ CLEAR FL%
+005460      RETURN 
+005470 REM --------------------------------------------------------------------
+005480 LOESCH3: ! PASSWRD löschen PASSWRD.OPA
+005490      FL% = 3 \ DELETE #3,KY3$
+005500      RETURN 
+005510 REM --------------------------------------------------------------------
+005520 L5: ! ZUGRIFF.KISS
+005530      READ #5,KY5$:XKNR$,ZB$,ZP$,ZD$,ZZ$,RIP$ \ UNLOCK #5
+005540      RETURN 
+005550 REM --------------------------------------------------------------------
+005560 L51: ! ZUGRIFF.KISS
+005570      READNEXT #5,KY5$:XKNR$,ZB$,ZP$,ZD$,ZZ$ \ UNLOCK #5
+005580      RETURN 
